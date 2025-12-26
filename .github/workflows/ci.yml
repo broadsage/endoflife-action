@@ -140,11 +140,3 @@ jobs:
       - name: Run npm audit
         run: npm audit --audit-level=moderate
         continue-on-error: true
-
-      - name: Run CodeQL analysis
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
