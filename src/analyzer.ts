@@ -20,7 +20,7 @@ export class EolAnalyzer {
   constructor(
     private client: EndOfLifeClient,
     private eolThresholdDays: number
-  ) { }
+  ) {}
 
   /**
    * Parse EOL date from various formats
