@@ -62,25 +62,34 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Commit build artifacts to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Checkout main branch
+          git checkout main
+          
+          # Add dist directory
+          git add dist/
+          
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: build artifacts for ${{ needs.release-please.outputs.tag_name }}"
+            git push origin main
+          fi
+
       - name: Commit build artifacts to tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          # Force add dist directory
-          git add -f dist/
+          # Delete the local tag and recreate it at the current commit
+          git tag -d ${{ needs.release-please.outputs.tag_name }}
+          git tag ${{ needs.release-please.outputs.tag_name }}
           
-          # Only commit if there are changes
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: build artifacts for ${{ needs.release-please.outputs.tag_name }}"
-            
-            # Delete the local tag and recreate it at the new commit
-            git tag -d ${{ needs.release-please.outputs.tag_name }}
-            git tag ${{ needs.release-please.outputs.tag_name }}
-            
-            # Force push the updated tag
-            git push origin ${{ needs.release-please.outputs.tag_name }} --force
-          fi
+          # Force push the updated tag
+          git push origin ${{ needs.release-please.outputs.tag_name }} --force
 
       - name: Update major version tag
         run: |
