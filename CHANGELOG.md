@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0 (2025-12-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* This is the initial v2.0.0 release with file-based version extraction and automated release management using release-please and Renovate.
+
+### Features
+
+* initial release of endoflife-action v2.0.0 ([306e11b](https://github.com/broadsage/endoflife-action/commit/306e11b52a909a4b55611f2d29f1a0403020f621))
+
+
+### Bug Fixes
+
+* add package-lock.json for npm cache support ([f32a858](https://github.com/broadsage/endoflife-action/commit/f32a8587e0434f1f2ea9dbf0780a32e403452dc2))
+* adjust coverage thresholds and remove CodeQL manual config ([a56b2e0](https://github.com/broadsage/endoflife-action/commit/a56b2e075a7c57bed19790079418cf493bf8e7ad))
+* apply Prettier formatting to all source files ([44600e0](https://github.com/broadsage/endoflife-action/commit/44600e0838bd9b7e7c8811a46f66552880370c72))
+* download build artifacts in integration test job ([ebf05b3](https://github.com/broadsage/endoflife-action/commit/ebf05b35ca257557c50b6a86368c9fab603a777e))
+
 ## [Unreleased]
 
 ### Added
