@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# SPDX-FileCopyrightText: 2025 BroadSage
+# SPDX-FileCopyrightText: 2025 Broadsage
 
 name: Release Please
 
@@ -33,8 +33,14 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-marketplace:
+  # Run full CI suite before publishing
+  ci:
     needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    uses: ./.github/workflows/ci.yml
+
+  publish-marketplace:
+    needs: [release-please, ci]
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     
@@ -62,11 +68,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Commit build artifacts to main
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
+
+      - name: Commit build artifacts to main
+        run: |
           # Checkout main branch
           git checkout main
           
@@ -81,9 +89,6 @@ jobs:
 
       - name: Commit build artifacts to tag
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
           # Delete the local tag and recreate it at the current commit
           git tag -d ${{ needs.release-please.outputs.tag_name }}
           git tag ${{ needs.release-please.outputs.tag_name }}
@@ -96,4 +101,3 @@ jobs:
           MAJOR="v${{ needs.release-please.outputs.major }}"
           git tag -f ${MAJOR}
           git push origin ${MAJOR} --force
-

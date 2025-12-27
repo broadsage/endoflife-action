@@ -4,14 +4,10 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'
   pull_request:
     branches:
       - main
+  workflow_call:  # Allow this workflow to be called by other workflows
 
 jobs:
   test:
