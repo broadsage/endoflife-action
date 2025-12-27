@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/broadsage/endoflife-action/compare/endoflife-action-v2.0.2...endoflife-action-v2.0.3) (2025-12-27)
+
+
+### Tests
+
+* fix failing tests and improve coverage to meet thresholds ([48c442a](https://github.com/broadsage/endoflife-action/commit/48c442a12089f1294abb58e3012264a90093e431))
+
 ## [2.0.2](https://github.com/broadsage/endoflife-action/compare/endoflife-action-v2.0.1...endoflife-action-v2.0.2) (2025-12-27)
 
 
