@@ -211,8 +211,11 @@ async function run(): Promise<void> {
         channels.forEach((channel) => notificationManager.addChannel(channel));
 
         if (notificationManager.getChannelCount() > 0) {
-          const notificationResults = await notificationManager.sendAll(results);
-          const successful = notificationResults.filter((r) => r.success).length;
+          const notificationResults =
+            await notificationManager.sendAll(results);
+          const successful = notificationResults.filter(
+            (r) => r.success
+          ).length;
           core.info(
             `Notifications sent: ${successful}/${notificationResults.length} successful`
           );
@@ -222,9 +225,7 @@ async function run(): Promise<void> {
       }
     } catch (error) {
       // Don't fail the action if notifications fail
-      core.warning(
-        `Failed to send notifications: ${getErrorMessage(error)}`
-      );
+      core.warning(`Failed to send notifications: ${getErrorMessage(error)}`);
     }
 
     // Log cache statistics
