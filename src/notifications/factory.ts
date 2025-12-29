@@ -99,10 +99,11 @@ export class NotificationChannelFactory {
 
             if (customHeadersInput) {
                 try {
-                    customHeaders = JSON.parse(customHeadersInput);
+                    customHeaders = JSON.parse(customHeadersInput) as Record<string, string>;
                 } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
                     core.warning(
-                        `Failed to parse custom-webhook-headers: ${error}. Using empty headers.`
+                        `Failed to parse custom-webhook-headers: ${errorMessage}. Using empty headers.`
                     );
                 }
             }
