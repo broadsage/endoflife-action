@@ -56385,7 +56385,9 @@ class BaseNotificationChannel {
             const response = await client.postJson(this.webhookUrl, payload, {
                 'Content-Type': 'application/json',
             });
-            if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
+            if (!response.statusCode ||
+                response.statusCode < 200 ||
+                response.statusCode >= 300) {
                 throw new Error(`HTTP ${response.statusCode || 'unknown'}: Request failed`);
             }
         }
@@ -56929,7 +56931,9 @@ class WebhookChannel extends base_channel_1.BaseNotificationChannel {
                 'Content-Type': 'application/json',
                 ...this.customHeaders,
             });
-            if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
+            if (!response.statusCode ||
+                response.statusCode < 200 ||
+                response.statusCode >= 300) {
                 throw new Error(`HTTP ${response.statusCode || 'unknown'}: Request failed`);
             }
         }
@@ -57002,7 +57006,7 @@ class NotificationChannelFactory {
      * Create a notification channel based on type and configuration
      */
     static create(type, webhookUrl, options = {}) {
-        const { retryAttempts = 3, retryDelayMs = 1000, customHeaders = {} } = options;
+        const { retryAttempts = 3, retryDelayMs = 1000, customHeaders = {}, } = options;
         switch (type) {
             case types_1.NotificationChannelType.SLACK:
                 return new slack_1.SlackChannel(webhookUrl, retryAttempts, retryDelayMs);
@@ -57053,7 +57057,8 @@ class NotificationChannelFactory {
                     customHeaders = JSON.parse(customHeadersInput);
                 }
                 catch (error) {
-                    core.warning(`Failed to parse custom-webhook-headers: ${error}. Using empty headers.`);
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    core.warning(`Failed to parse custom-webhook-headers: ${errorMessage}. Using empty headers.`);
                 }
             }
             channels.push(this.create(types_1.NotificationChannelType.WEBHOOK, customWebhook, {
@@ -57263,7 +57268,8 @@ class NotificationManager {
                 core.info(`[NotificationManager] ✓ ${channel.name} notification sent`);
             }
             catch (error) {
-                result.error = error instanceof Error ? error : new Error(String(error));
+                result.error =
+                    error instanceof Error ? error : new Error(String(error));
                 core.error(`[NotificationManager] ✗ ${channel.name} notification failed: ${result.error.message}`);
             }
             return result;
