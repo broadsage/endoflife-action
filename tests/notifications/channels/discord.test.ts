@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2025 Broadsage
 
-import { DiscordChannel } from '../../src/notifications/channels/discord';
-import { NotificationChannelType, NotificationMessage, NotificationSeverity } from '../../src/notifications/types';
+import { DiscordChannel } from '../../../src/notifications/channels/discord';
+import { NotificationChannelType, NotificationMessage, NotificationSeverity } from '../../../src/notifications/types';
 
 describe('DiscordChannel', () => {
     let channel: DiscordChannel;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2025 Broadsage
 
-import { SlackChannel } from '../../src/notifications/channels/slack';
-import { NotificationChannelType, NotificationMessage, NotificationSeverity } from '../../src/notifications/types';
+import { SlackChannel } from '../../../src/notifications/channels/slack';
+import { NotificationChannelType, NotificationMessage, NotificationSeverity } from '../../../src/notifications/types';
 
 describe('SlackChannel', () => {
     let channel: SlackChannel;

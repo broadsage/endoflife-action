@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2025 Broadsage
 
+import * as core from '@actions/core';
+import * as fs from 'fs/promises';
 import {
     formatAsJson,
     formatAsMarkdown,
     createIssueBody,
+    generateMatrix,
+    generateMatrixInclude,
+    setOutputs,
+    writeToStepSummary,
+    writeToFile,
 } from '../src/outputs';
 import { ActionResults, EolStatus, ProductVersionInfo } from '../src/types';
+
+// Mock fs/promises module
+jest.mock('fs/promises');
 
 describe('Output Formatting', () => {
     const mockProduct: ProductVersionInfo = {
@@ -203,6 +213,302 @@ describe('Output Formatting', () => {
             const result = createIssueBody(results);
 
             expect(result).not.toContain('**More Info:**');
+        });
+    });
+
+    describe('generateMatrix', () => {
+        it('should generate simple matrix with all products', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                cycle: '3.11',
+            };
+
+            const results: ActionResults = {
+                ...mockResults,
+                products: [mockProduct, activeProduct],
+            };
+
+            const matrix = generateMatrix(results, false, false);
+
+            expect(matrix.versions).toHaveLength(2);
+            expect(matrix.versions).toContain('2.7');
+            expect(matrix.versions).toContain('3.11');
+        });
+
+        it('should exclude EOL products by default', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                cycle: '3.11',
+            };
+
+            const results: ActionResults = {
+                ...mockResults,
+                products: [mockProduct, activeProduct],
+            };
+
+            const matrix = generateMatrix(results);
+
+            expect(matrix.versions).toHaveLength(1);
+            expect(matrix.versions).toContain('3.11');
+            expect(matrix.versions).not.toContain('2.7');
+        });
+
+        it('should exclude approaching EOL when specified', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                cycle: '3.11',
+            };
+
+            const approachingProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.APPROACHING_EOL,
+                cycle: '3.9',
+            };
+
+            const results: ActionResults = {
+                ...mockResults,
+                products: [mockProduct, activeProduct, approachingProduct],
+            };
+
+            const matrix = generateMatrix(results, true, true);
+
+            expect(matrix.versions).toHaveLength(1);
+            expect(matrix.versions).toContain('3.11');
+        });
+
+        it('should handle empty products list', () => {
+            const results: ActionResults = {
+                ...mockResults,
+                products: [],
+            };
+
+            const matrix = generateMatrix(results);
+
+            expect(matrix.versions).toHaveLength(0);
+        });
+    });
+
+    describe('generateMatrixInclude', () => {
+        it('should generate detailed matrix with metadata', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                cycle: '3.11',
+                eolDate: '2027-10-24',
+                releaseDate: '2022-10-24',
+                isLts: true,
+            };
+
+            const results: ActionResults = {
+                ...mockResults,
+                products: [activeProduct],
+            };
+
+            const matrix = generateMatrixInclude(results, false, false);
+
+            expect(matrix.include).toHaveLength(1);
+            expect(matrix.include[0]).toEqual({
+                version: '3.11',
+                cycle: '3.11',
+                isLts: true,
+                eolDate: '2027-10-24',
+                status: EolStatus.ACTIVE,
+                releaseDate: '2022-10-24',
+            });
+        });
+
+        it('should exclude EOL products by default', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                cycle: '3.11',
+                eolDate: '2027-10-24',
+                releaseDate: '2022-10-24',
+                isLts: false,
+            };
+
+            const results: ActionResults = {
+                ...mockResults,
+                products: [mockProduct, activeProduct],
+            };
+
+            const matrix = generateMatrixInclude(results);
+
+            expect(matrix.include).toHaveLength(1);
+            expect(matrix.include[0].cycle).toBe('3.11');
+        });
+
+        it('should exclude approaching EOL when specified', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                cycle: '3.11',
+                eolDate: '2027-10-24',
+                releaseDate: '2022-10-24',
+                isLts: false,
+            };
+
+            const approachingProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.APPROACHING_EOL,
+                cycle: '3.9',
+                eolDate: '2025-02-01',
+                releaseDate: '2020-10-05',
+                isLts: false,
+            };
+
+            const results: ActionResults = {
+                ...mockResults,
+                products: [mockProduct, activeProduct, approachingProduct],
+            };
+
+            const matrix = generateMatrixInclude(results, true, true);
+
+            expect(matrix.include).toHaveLength(1);
+            expect(matrix.include[0].cycle).toBe('3.11');
+        });
+
+        it('should handle empty products list', () => {
+            const results: ActionResults = {
+                ...mockResults,
+                products: [],
+            };
+
+            const matrix = generateMatrixInclude(results);
+
+            expect(matrix.include).toHaveLength(0);
+        });
+    });
+
+    describe('setOutputs', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+            jest.spyOn(core, 'setOutput').mockImplementation();
+        });
+
+        it('should set all basic outputs', () => {
+            setOutputs(mockResults);
+
+            expect(core.setOutput).toHaveBeenCalledWith('eol-detected', true);
+            expect(core.setOutput).toHaveBeenCalledWith('approaching-eol', false);
+            expect(core.setOutput).toHaveBeenCalledWith('results', JSON.stringify(mockResults));
+            expect(core.setOutput).toHaveBeenCalledWith('eol-products', JSON.stringify(mockResults.eolProducts));
+            expect(core.setOutput).toHaveBeenCalledWith('approaching-eol-products', JSON.stringify(mockResults.approachingEolProducts));
+            expect(core.setOutput).toHaveBeenCalledWith('latest-versions', JSON.stringify(mockResults.latestVersions));
+            expect(core.setOutput).toHaveBeenCalledWith('summary', 'Test summary');
+            expect(core.setOutput).toHaveBeenCalledWith('total-products-checked', 1);
+            expect(core.setOutput).toHaveBeenCalledWith('total-cycles-checked', 1);
+        });
+
+        it('should set matrix output when provided', () => {
+            const resultsWithMatrix: ActionResults = {
+                ...mockResults,
+                matrix: { versions: ['3.11', '3.12'] },
+            };
+
+            setOutputs(resultsWithMatrix);
+
+            expect(core.setOutput).toHaveBeenCalledWith('matrix', JSON.stringify({ versions: ['3.11', '3.12'] }));
+        });
+
+        it('should set matrixInclude output when provided', () => {
+            const resultsWithMatrixInclude: ActionResults = {
+                ...mockResults,
+                matrixInclude: {
+                    include: [
+                        {
+                            version: '3.11',
+                            cycle: '3.11',
+                            isLts: true,
+                            eolDate: '2027-10-24',
+                            status: EolStatus.ACTIVE,
+                            releaseDate: '2022-10-24',
+                        },
+                    ],
+                },
+            };
+
+            setOutputs(resultsWithMatrixInclude);
+
+            expect(core.setOutput).toHaveBeenCalledWith('matrix-include', JSON.stringify(resultsWithMatrixInclude.matrixInclude));
+        });
+
+        it('should not set matrix outputs when not provided', () => {
+            setOutputs(mockResults);
+
+            const calls = (core.setOutput as jest.Mock).mock.calls;
+            const matrixCalls = calls.filter(call => call[0] === 'matrix' || call[0] === 'matrix-include');
+
+            expect(matrixCalls).toHaveLength(0);
+        });
+    });
+
+    describe('writeToStepSummary', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+            // Mock the summary API
+            (core.summary.addRaw as jest.Mock) = jest.fn().mockReturnValue(core.summary);
+            (core.summary.write as jest.Mock) = jest.fn().mockResolvedValue(undefined);
+        });
+
+        it('should write markdown to step summary', async () => {
+            await writeToStepSummary(mockResults);
+
+            expect(core.summary.addRaw).toHaveBeenCalledWith(expect.stringContaining('# 📊 EndOfLife Analysis Report'));
+            expect(core.summary.write).toHaveBeenCalled();
+        });
+
+        it('should format results as markdown before writing', async () => {
+            await writeToStepSummary(mockResults);
+
+            const markdown = (core.summary.addRaw as jest.Mock).mock.calls[0][0];
+
+            expect(markdown).toContain('**Total Products Checked:** 1');
+            expect(markdown).toContain('## ❌ End-of-Life Detected');
+        });
+    });
+
+    describe('writeToFile', () => {
+        const mockWriteFile = fs.writeFile as jest.MockedFunction<typeof fs.writeFile>;
+
+        beforeEach(() => {
+            jest.clearAllMocks();
+            mockWriteFile.mockResolvedValue(undefined);
+            jest.spyOn(core, 'info').mockImplementation();
+            jest.spyOn(core, 'error').mockImplementation();
+        });
+
+        it('should write content to file', async () => {
+            await writeToFile('/tmp/test.json', '{"test": true}');
+
+            expect(mockWriteFile).toHaveBeenCalledWith('/tmp/test.json', '{"test": true}', 'utf-8');
+            expect(core.info).toHaveBeenCalledWith('Results written to /tmp/test.json');
+        });
+
+        it('should log info message on success', async () => {
+            await writeToFile('/tmp/output.md', 'markdown content');
+
+            expect(core.info).toHaveBeenCalledWith('Results written to /tmp/output.md');
+        });
+
+        it('should throw and log error on failure', async () => {
+            const error = new Error('Permission denied');
+            mockWriteFile.mockRejectedValue(error);
+
+            await expect(writeToFile('/tmp/test.json', 'content')).rejects.toThrow('Permission denied');
+
+            expect(core.error).toHaveBeenCalledWith('Failed to write to file /tmp/test.json: Permission denied');
+        });
+
+        it('should handle non-Error exceptions', async () => {
+            mockWriteFile.mockRejectedValue('String error');
+
+            await expect(writeToFile('/tmp/test.json', 'content')).rejects.toBe('String error');
+
+            expect(core.error).toHaveBeenCalledWith('Failed to write to file /tmp/test.json: String error');
         });
     });
 });
