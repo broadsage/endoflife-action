@@ -8,7 +8,12 @@ import {
   Cycle,
   CycleSchema,
   AllProducts,
-  AllProductsSchema,
+  ProductSummary,
+  ProductSummarySchema,
+  FullProduct,
+  FullProductSchema,
+  StringList,
+  StringListSchema,
   EndOfLifeApiError,
   ValidationError,
 } from './types';
@@ -16,7 +21,8 @@ import { cleanVersion, getSemanticFallbacks } from './utils/version-utils';
 import { getErrorMessage } from './utils/error-utils';
 
 /**
- * Client for interacting with the EndOfLife.date API
+ * Client for interacting with the EndOfLife.date API v1
+ * API Documentation: https://endoflife.date/docs/api/v1/
  */
 export class EndOfLifeClient {
   private httpClient: HttpClient;
@@ -24,8 +30,8 @@ export class EndOfLifeClient {
   private cache: Map<string, { data: unknown; timestamp: number }>;
   private cacheTtl: number;
 
-  constructor(baseUrl = 'https://endoflife.date', cacheTtl = 3600) {
-    this.httpClient = new HttpClient('endoflife-action', undefined, {
+  constructor(baseUrl = 'https://endoflife.date/api/v1', cacheTtl = 3600) {
+    this.httpClient = new HttpClient('endoflife-action/v3', undefined, {
       allowRetries: true,
       maxRetries: 3,
     });
@@ -61,9 +67,14 @@ export class EndOfLifeClient {
   }
 
   /**
-   * Make HTTP request with error handling
+   * Make HTTP request with error handling and rate limit retry
+   * Implements exponential backoff for 429 (Rate Limit) responses
    */
-  private async request<T>(url: string, schema: z.ZodSchema<T>): Promise<T> {
+  private async request<T>(
+    url: string,
+    schema: z.ZodSchema<T>,
+    retryAttempt = 0
+  ): Promise<T> {
     const cacheKey = url;
     const cached = this.getCached<T>(cacheKey);
     if (cached) {
@@ -76,6 +87,23 @@ export class EndOfLifeClient {
     try {
       const response = await this.httpClient.get(url);
       const body = await response.readBody();
+
+      // Handle rate limiting with exponential backoff
+      if (response.message.statusCode === 429) {
+        const maxRetries = 3;
+        if (retryAttempt < maxRetries) {
+          const delay = Math.pow(2, retryAttempt) * 1000; // 1s, 2s, 4s
+          core.warning(
+            `Rate limited (429). Retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this.request(url, schema, retryAttempt + 1);
+        }
+        throw new EndOfLifeApiError(
+          'Rate limit exceeded. Max retries reached.',
+          429
+        );
+      }
 
       if (response.message.statusCode !== 200) {
         throw new EndOfLifeApiError(
@@ -104,19 +132,42 @@ export class EndOfLifeClient {
 
   /**
    * Get all available products
+   * API v1: GET /products
    */
   async getAllProducts(): Promise<AllProducts> {
-    const url = `${this.baseUrl}/api/all.json`;
-    return this.request(url, AllProductsSchema);
+    const url = `${this.baseUrl}/products`;
+    // v1 API returns an array of product objects with name, label, etc.
+    // We need to extract just the names for backward compatibility
+    const response = await this.request(
+      url,
+      z.array(
+        z.object({
+          name: z.string(),
+          label: z.string().optional(),
+          category: z.string().optional(),
+        })
+      )
+    );
+    return response.map((p) => p.name);
   }
 
   /**
-   * Get all cycles for a product
+   * Get all release cycles for a product
+   * API v1: GET /products/{product}
+   * Returns the full product object including releases array
    */
   async getProductCycles(product: string): Promise<Cycle[]> {
-    const url = `${this.baseUrl}/api/${product}.json`;
+    const url = `${this.baseUrl}/products/${product}`;
     try {
-      return await this.request(url, z.array(CycleSchema));
+      const response = await this.request(
+        url,
+        z.object({
+          name: z.string(),
+          label: z.string().optional(),
+          releases: z.array(CycleSchema),
+        })
+      );
+      return response.releases;
     } catch (error) {
       if (error instanceof EndOfLifeApiError) {
         error.product = product;
@@ -126,12 +177,14 @@ export class EndOfLifeClient {
   }
 
   /**
-   * Get a specific cycle for a product
+   * Get a specific release cycle for a product
+   * API v1: GET /products/{product}/releases/{release}
    */
   async getProductCycle(product: string, cycle: string): Promise<Cycle> {
-    // Replace slashes with dashes as per API spec
-    const normalizedCycle = cycle.replace(/\//g, '-');
-    const url = `${this.baseUrl}/api/${product}/${normalizedCycle}.json`;
+    // v1 API uses 'releases' instead of cycles, but the cycle name remains the same
+    // URL-encode the cycle to handle special characters like slashes
+    const encodedCycle = encodeURIComponent(cycle);
+    const url = `${this.baseUrl}/products/${product}/releases/${encodedCycle}`;
 
     try {
       return await this.request(url, CycleSchema);
@@ -159,14 +212,14 @@ export class EndOfLifeClient {
 
     for (const v of versions) {
       try {
-        core.debug(`Trying to fetch cycle info for ${product}/${v}`);
+        core.debug(`Trying to fetch release info for ${product}/${v}`);
         const info = await this.getProductCycle(product, v);
         if (info) {
-          core.info(`✓ Matched ${product} version ${version} to cycle ${v}`);
+          core.info(`✓ Matched ${product} version ${version} to release ${v}`);
           return info;
         }
       } catch (error) {
-        core.debug(`No cycle found for ${product}/${v}`);
+        core.debug(`No release found for ${product}/${v}`);
       }
     }
 
@@ -188,5 +241,76 @@ export class EndOfLifeClient {
       size: this.cache.size,
       keys: Array.from(this.cache.keys()),
     };
+  }
+
+  /**
+   * Get full data for all products (bulk dump)
+   * API v1: GET /products/full
+   * Warning: This endpoint returns a large amount of data
+   */
+  async getProductsFullData(): Promise<FullProduct[]> {
+    const url = `${this.baseUrl}/products/full`;
+    return await this.request(url, z.array(FullProductSchema));
+  }
+
+  /**
+   * Get the latest release cycle for a product
+   * API v1: GET /products/{product}/releases/latest
+   */
+  async getLatestRelease(product: string): Promise<Cycle> {
+    const url = `${this.baseUrl}/products/${product}/releases/latest`;
+    try {
+      return await this.request(url, CycleSchema);
+    } catch (error) {
+      if (error instanceof EndOfLifeApiError) {
+        error.product = product;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get all available categories
+   * API v1: GET /categories
+   */
+  async getCategories(): Promise<StringList> {
+    const url = `${this.baseUrl}/categories`;
+    return await this.request(url, StringListSchema);
+  }
+
+  /**
+   * Get all products in a specific category
+   * API v1: GET /categories/{category}
+   */
+  async getProductsByCategory(category: string): Promise<ProductSummary[]> {
+    const url = `${this.baseUrl}/categories/${category}`;
+    return await this.request(url, z.array(ProductSummarySchema));
+  }
+
+  /**
+   * Get all available tags
+   * API v1: GET /tags
+   */
+  async getTags(): Promise<StringList> {
+    const url = `${this.baseUrl}/tags`;
+    return await this.request(url, StringListSchema);
+  }
+
+  /**
+   * Get all products with a specific tag
+   * API v1: GET /tags/{tag}
+   */
+  async getProductsByTag(tag: string): Promise<ProductSummary[]> {
+    const url = `${this.baseUrl}/tags/${tag}`;
+    return await this.request(url, z.array(ProductSummarySchema));
+  }
+
+  /**
+   * Get all identifier types (e.g., purl, cpe)
+   * API v1: GET /identifiers
+   */
+  async getIdentifierTypes(): Promise<StringList> {
+    const url = `${this.baseUrl}/identifiers`;
+    return await this.request(url, StringListSchema);
   }
 }

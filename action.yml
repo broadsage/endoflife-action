@@ -35,6 +35,21 @@ inputs:
     required: false
     default: 'false'
   
+  fail-on-stale:
+    description: 'Fail the action if any version has not received updates within staleness threshold'
+    required: false
+    default: 'false'
+  
+  staleness-threshold-days:
+    description: 'Number of days since last release to consider a version stale (default: 365)'
+    required: false
+    default: '365'
+  
+  include-discontinued:
+    description: 'Include discontinued products/devices in the analysis (e.g., hardware EOL)'
+    required: false
+    default: 'true'
+  
   output-format:
     description: 'Output format: json, markdown, or summary (GitHub Step Summary)'
     required: false
@@ -78,7 +93,7 @@ inputs:
   custom-api-url:
     description: 'Custom API URL (for testing or self-hosted instances)'
     required: false
-    default: 'https://endoflife.date'
+    default: 'https://endoflife.date/api/v1'
   
   file-path:
     description: 'Path to file containing version information (e.g., helm/values.yaml, package.json)'
@@ -247,6 +262,22 @@ outputs:
   
   matrix-include:
     description: 'Detailed JSON matrix with metadata (format: { "include": [...] })'
+  
+  stale-detected:
+    description: 'Boolean indicating if any stale versions were detected (no recent releases)'
+  
+  stale-products:
+    description: 'JSON array of products with stale versions (no recent updates)'
+  
+  discontinued-detected:
+    description: 'Boolean indicating if any discontinued products were detected'
+  
+  discontinued-products:
+    description: 'JSON array of discontinued products/devices'
+  
+  extended-support-products:
+    description: 'JSON array of products with extended support available'
+
 
 runs:
   using: 'node24'

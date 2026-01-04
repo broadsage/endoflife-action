@@ -10,7 +10,7 @@ describe('EndOfLifeClient', () => {
     const baseUrl = 'https://endoflife.date';
 
     beforeEach(() => {
-        client = new EndOfLifeClient(baseUrl, 3600);
+        client = new EndOfLifeClient(`${baseUrl}/api/v1`, 3600);
         nock.cleanAll();
     });
 
@@ -20,41 +20,48 @@ describe('EndOfLifeClient', () => {
 
     describe('getAllProducts', () => {
         it('should fetch all products successfully', async () => {
-            const mockProducts = ['python', 'nodejs', 'ubuntu'];
+            const mockProducts = [
+                { name: 'python', label: 'Python' },
+                { name: 'nodejs', label: 'Node.js' },
+                { name: 'ubuntu', label: 'Ubuntu' },
+            ];
 
             nock(baseUrl)
-                .get('/api/all.json')
+                .get('/api/v1/products')
                 .reply(200, mockProducts);
 
             const products = await client.getAllProducts();
 
-            expect(products).toEqual(mockProducts);
+            expect(products).toEqual(['python', 'nodejs', 'ubuntu']);
             expect(products).toHaveLength(3);
         });
 
         it('should handle API errors', async () => {
             nock(baseUrl)
-                .get('/api/all.json')
+                .get('/api/v1/products')
                 .reply(500, 'Internal Server Error');
 
             await expect(client.getAllProducts()).rejects.toThrow(EndOfLifeApiError);
         });
 
         it('should use cache for repeated requests', async () => {
-            const mockProducts = ['python', 'nodejs'];
+            const mockProducts = [
+                { name: 'python', label: 'Python' },
+                { name: 'nodejs', label: 'Node.js' },
+            ];
 
             nock(baseUrl)
-                .get('/api/all.json')
+                .get('/api/v1/products')
                 .once()
                 .reply(200, mockProducts);
 
             // First request
             const products1 = await client.getAllProducts();
-            expect(products1).toEqual(mockProducts);
+            expect(products1).toEqual(['python', 'nodejs']);
 
             // Second request should use cache (no new HTTP call)
             const products2 = await client.getAllProducts();
-            expect(products2).toEqual(mockProducts);
+            expect(products2).toEqual(['python', 'nodejs']);
 
             // Verify cache stats
             const stats = client.getCacheStats();
@@ -82,8 +89,12 @@ describe('EndOfLifeClient', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, mockCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: mockCycles,
+                });
 
             const cycles = await client.getProductCycles('python');
 
@@ -93,7 +104,7 @@ describe('EndOfLifeClient', () => {
 
         it('should handle 404 for unknown products', async () => {
             nock(baseUrl)
-                .get('/api/unknown-product.json')
+                .get('/api/v1/products/unknown-product')
                 .reply(404, 'Not Found');
 
             await expect(
@@ -110,8 +121,12 @@ describe('EndOfLifeClient', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, invalidResponse);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: invalidResponse,
+                });
 
             await expect(client.getProductCycles('python')).rejects.toThrow();
         });
@@ -128,7 +143,7 @@ describe('EndOfLifeClient', () => {
             };
 
             nock(baseUrl)
-                .get('/api/python/3.11.json')
+                .get('/api/v1/products/python/releases/3.11')
                 .reply(200, mockCycle);
 
             const cycle = await client.getProductCycle('python', '3.11');
@@ -136,7 +151,7 @@ describe('EndOfLifeClient', () => {
             expect(cycle).toEqual(mockCycle);
         });
 
-        it('should normalize cycle names with slashes', async () => {
+        it('should handle cycles with special characters', async () => {
             const mockCycle = {
                 cycle: 'releng/14.0',
                 releaseDate: '2023-11-20',
@@ -145,7 +160,7 @@ describe('EndOfLifeClient', () => {
             };
 
             nock(baseUrl)
-                .get('/api/freebsd/releng-14.0.json')
+                .get('/api/v1/products/freebsd/releases/releng%2F14.0')
                 .reply(200, mockCycle);
 
             const cycle = await client.getProductCycle('freebsd', 'releng/14.0');
@@ -155,7 +170,7 @@ describe('EndOfLifeClient', () => {
 
         it('should handle 404 for unknown cycles', async () => {
             nock(baseUrl)
-                .get('/api/python/99.99.json')
+                .get('/api/v1/products/python/releases/99.99')
                 .reply(404, 'Not Found');
 
             await expect(
@@ -166,10 +181,10 @@ describe('EndOfLifeClient', () => {
 
     describe('cache management', () => {
         it('should clear cache', async () => {
-            const mockProducts = ['python'];
+            const mockProducts = [{ name: 'python', label: 'Python' }];
 
             nock(baseUrl)
-                .get('/api/all.json')
+                .get('/api/v1/products')
                 .reply(200, mockProducts);
 
             await client.getAllProducts();
@@ -184,11 +199,11 @@ describe('EndOfLifeClient', () => {
         });
 
         it('should expire cache after TTL', async () => {
-            const shortTtlClient = new EndOfLifeClient(baseUrl, 1); // 1 second TTL
-            const mockProducts = ['python'];
+            const shortTtlClient = new EndOfLifeClient(`${baseUrl}/api/v1`, 1); // 1 second TTL
+            const mockProducts = [{ name: 'python', label: 'Python' }];
 
             nock(baseUrl)
-                .get('/api/all.json')
+                .get('/api/v1/products')
                 .times(2)
                 .reply(200, mockProducts);
 
@@ -208,7 +223,7 @@ describe('EndOfLifeClient', () => {
     describe('error handling', () => {
         it('should include product in error for product-specific calls', async () => {
             nock(baseUrl)
-                .get('/api/python.json')
+                .get('/api/v1/products/python')
                 .reply(500, 'Server Error');
 
             try {
@@ -222,7 +237,7 @@ describe('EndOfLifeClient', () => {
 
         it('should include cycle in error for cycle-specific calls', async () => {
             nock(baseUrl)
-                .get('/api/python/3.11.json')
+                .get('/api/v1/products/python/releases/3.11')
                 .reply(500, 'Server Error');
 
             try {

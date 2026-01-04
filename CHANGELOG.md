@@ -1,5 +1,84 @@
 # Changelog
 
+## [Unreleased]
+
+### ⚠ BREAKING CHANGES
+
+* **API Migration**: Migrated from endoflife.date API v0 to API v1. If using `custom-api-url`, update to include `/api/v1` path.
+
+### Features
+
+* **API v1 Migration**: Complete migration to endoflife.date API v1 with all endpoints
+  - Migrated base URL from `/api` to `/api/v1`
+  - Updated all endpoints to v1 structure (`/products`, `/products/{product}`, `/products/{product}/releases/{release}`)
+  - Added support for 7 new v1 API endpoints:
+    - `GET /products/full` - Bulk data dump of all products
+    - `GET /products/{product}/releases/latest` - Latest release for a product
+    - `GET /categories` - List all categories
+    - `GET /categories/{category}` - Products by category
+    - `GET /tags` - List all tags
+    - `GET /tags/{tag}` - Products by tag
+    - `GET /identifiers` - List identifier types
+  - Proper URL encoding for special characters in cycle names (e.g., slashes)
+  - Enhanced response validation with Zod schemas
+
+* **Extended API Fields**: Full support for all v1 API fields
+  - `discontinued` - Track hardware/device discontinuation dates
+  - `extendedSupport` - Identify products with extended support options
+  - `latestReleaseDate` - Detect stale versions with no recent updates
+  - `category` - Product categorization
+  - `label` - Human-readable product names
+
+* **New Action Inputs**:
+  - `fail-on-stale` - Fail workflow if versions haven't been updated recently
+  - `staleness-threshold-days` - Days since last release to consider stale (default: 365)
+  - `include-discontinued` - Include discontinued products in analysis (default: true)
+
+* **New Action Outputs**:
+  - `stale-detected` - Boolean indicating stale versions
+  - `stale-products` - JSON array of stale products
+  - `discontinued-detected` - Boolean indicating discontinued products
+  - `discontinued-products` - JSON array of discontinued products
+  - `extended-support-products` - JSON array with extended support
+
+### Bug Fixes
+
+* **Test Coverage**: Fixed all failing tests after v1 API migration
+  - Updated test mocks to match v1 API response structure
+  - Fixed analyzer tests to use v1 endpoints
+  - Fixed client tests to use v1 endpoints
+  - All 192 tests now passing ✅
+
+* **URL Encoding**: Added proper URL encoding for cycle parameters to handle special characters
+
+### Code Refactoring
+
+* **Remove Code Duplication**: Eliminated backward compatibility code for v0 API
+* **Type Safety**: Enhanced type definitions with new v1 API schemas
+* **Client Architecture**: Streamlined client methods for better maintainability
+
+### Tests
+
+* **Improved Coverage**: Increased test coverage significantly
+  - Client coverage: 76% → 81%
+  - Added comprehensive tests for all new v1 endpoints
+  - Added 15 new test cases for v1 API extensions
+  - Total tests: 177 → 192 (+15)
+  - All notification channels: 100% coverage
+  - All utils: 97.5% coverage
+
+### Documentation
+
+* **README**: Updated to reflect v1 API migration and new features
+* **API Migration Guide**: Comprehensive migration documentation in `API_V1_MIGRATION.md`
+* **Examples**: Added new example workflows for hardware EOL tracking and staleness detection
+* **Code Comments**: Enhanced inline documentation for all new methods
+
+### Performance
+
+* **Caching**: Maintained efficient caching for all new endpoints
+* **Rate Limiting**: Exponential backoff retry logic for HTTP 429 responses (1s, 2s, 4s delays)
+
 ## [3.1.0](https://github.com/broadsage/endoflife-action/compare/v3.0.1...v3.1.0) (2026-01-03)
 
 

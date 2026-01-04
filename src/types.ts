@@ -29,6 +29,36 @@ export const AllProductsSchema = z.array(z.string());
 export type AllProducts = z.infer<typeof AllProductsSchema>;
 
 /**
+ * Schema for product summary (from /products endpoint)
+ */
+export const ProductSummarySchema = z.object({
+  name: z.string(),
+  label: z.string().optional(),
+  category: z.string().optional(),
+});
+
+export type ProductSummary = z.infer<typeof ProductSummarySchema>;
+
+/**
+ * Schema for full product data (from /products/{product} endpoint)
+ */
+export const FullProductSchema = z.object({
+  name: z.string(),
+  label: z.string().optional(),
+  category: z.string().optional(),
+  releases: z.array(CycleSchema),
+});
+
+export type FullProduct = z.infer<typeof FullProductSchema>;
+
+/**
+ * Schema for categories and tags (simple string arrays)
+ */
+export const StringListSchema = z.array(z.string());
+
+export type StringList = z.infer<typeof StringListSchema>;
+
+/**
  * Schema for product cycles mapping
  */
 export const ProductCyclesSchema = z.record(z.string(), z.array(z.string()));
@@ -65,6 +95,9 @@ export const ActionInputsSchema = z.object({
   eolThresholdDays: z.number().int().positive(),
   failOnEol: z.boolean(),
   failOnApproachingEol: z.boolean(),
+  failOnStale: z.boolean(),
+  stalenessThresholdDays: z.number().int().positive(),
+  includeDiscontinued: z.boolean(),
   outputFormat: z.enum(['json', 'markdown', 'summary']),
   outputFile: z.string(),
   cacheTtl: z.number().int().positive(),
@@ -118,6 +151,13 @@ export interface ProductVersionInfo {
   isLts: boolean;
   supportDate: string | null;
   link: string | null;
+  // Extended fields for additional tracking
+  discontinuedDate: string | null;
+  isDiscontinued: boolean;
+  extendedSupportDate: string | null;
+  hasExtendedSupport: boolean;
+  latestReleaseDate: string | null;
+  daysSinceLatestRelease: number | null;
   rawData: Cycle;
 }
 
@@ -127,11 +167,16 @@ export interface ProductVersionInfo {
 export interface ActionResults {
   eolDetected: boolean;
   approachingEol: boolean;
+  staleDetected: boolean;
+  discontinuedDetected: boolean;
   totalProductsChecked: number;
   totalCyclesChecked: number;
   products: ProductVersionInfo[];
   eolProducts: ProductVersionInfo[];
   approachingEolProducts: ProductVersionInfo[];
+  staleProducts: ProductVersionInfo[];
+  discontinuedProducts: ProductVersionInfo[];
+  extendedSupportProducts: ProductVersionInfo[];
   latestVersions: Record<string, string>;
   summary: string;
   // Matrix outputs

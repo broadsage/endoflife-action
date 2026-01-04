@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 Broadsage
+
+name: Stale Version Detection
+
+on:
+  schedule:
+    # Run monthly on the 1st at 9 AM UTC
+    - cron: '0 9 1 * *'
+  workflow_dispatch:
+
+jobs:
+  check-stale-versions:
+    name: Detect Stale Software Versions
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Check for stale versions
+        id: stale-check
+        uses: broadsage/endoflife-action@v3
+        with:
+          # Track critical dependencies
+          products: 'python,nodejs,postgresql,redis,nginx'
+          
+          # Check specific versions
+          cycles: |
+            {
+              "python": ["3.11", "3.12"],
+              "nodejs": ["20", "21"],
+              "postgresql": ["15", "16"],
+              "redis": ["7.2"],
+              "nginx": ["1.25"]
+            }
+          
+          # Fail if no updates in 365 days
+          fail-on-stale: true
+          staleness-threshold-days: 365
+          
+          # Also check for EOL
+          fail-on-eol: true
+          eol-threshold-days: 90
+          
+          # Generate detailed report
+          output-format: 'markdown'
+          output-file: 'staleness-report.md'
+          
+          # Multi-channel notifications
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK }}
+      
+      - name: Upload staleness report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staleness-report
+          path: staleness-report.md
+          retention-days: 30
+      
+      - name: Display results
+        if: always()
+        run: |
+          echo "Stale Detected: ${{ steps.stale-check.outputs.stale-detected }}"
+          echo "Stale Products: ${{ steps.stale-check.outputs.stale-products }}"
+          echo "EOL Detected: ${{ steps.stale-check.outputs.eol-detected }}"
+          echo "Extended Support Available: ${{ steps.stale-check.outputs.extended-support-products }}"

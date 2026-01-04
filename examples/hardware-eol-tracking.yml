@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 Broadsage
+
+name: Hardware EOL Monitoring
+
+on:
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check-hardware-eol:
+    name: Monitor Hardware End-of-Life
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Check hardware EOL status
+        id: eol-check
+        uses: broadsage/endoflife-action@v3
+        with:
+          # Track hardware devices
+          products: 'iphone,pixel,surface,kindle'
+          
+          # Specify device models
+          cycles: |
+            {
+              "iphone": ["15", "14", "13"],
+              "pixel": ["8", "7", "6"],
+              "surface": ["pro-9", "pro-8"],
+              "kindle": ["11", "10"]
+            }
+          
+          # Include discontinued products (hardware EOL)
+          include-discontinued: true
+          
+          # Alert 180 days before EOL for planning
+          eol-threshold-days: 180
+          
+          # Create issues for tracking
+          create-issue-on-eol: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-labels: 'hardware,eol,devices'
+          
+          # Generate markdown report
+          output-format: 'markdown'
+          output-file: 'hardware-eol-report.md'
+          
+          # Send Slack notification
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+      
+      - name: Upload EOL report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardware-eol-report
+          path: hardware-eol-report.md
+          retention-days: 30
+      
+      - name: Display results
+        if: always()
+        run: |
+          echo "EOL Detected: ${{ steps.eol-check.outputs.eol-detected }}"
+          echo "Discontinued Detected: ${{ steps.eol-check.outputs.discontinued-detected }}"
+          echo "Total Products Checked: ${{ steps.eol-check.outputs.total-products-checked }}"

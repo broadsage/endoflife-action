@@ -96,6 +96,78 @@ export class EolAnalyzer {
   }
 
   /**
+   * Parse discontinued date from various formats
+   */
+  private parseDiscontinuedDate(
+    discontinued: string | boolean | undefined
+  ): Date | null {
+    if (!discontinued) return null;
+    if (typeof discontinued === 'boolean') return null;
+
+    try {
+      const date = parseISO(discontinued);
+      return isValid(date) ? date : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if product is discontinued
+   */
+  private isDiscontinued(cycle: Cycle): boolean {
+    if (cycle.discontinued === true) return true;
+    if (typeof cycle.discontinued === 'string') {
+      const date = this.parseDiscontinuedDate(cycle.discontinued);
+      if (date) {
+        return date <= new Date();
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Parse extended support date from various formats
+   */
+  private parseExtendedSupportDate(
+    extendedSupport: string | boolean | undefined
+  ): Date | null {
+    if (!extendedSupport) return null;
+    if (typeof extendedSupport === 'boolean') return null;
+
+    try {
+      const date = parseISO(extendedSupport);
+      return isValid(date) ? date : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if cycle has extended support
+   */
+  private hasExtendedSupport(cycle: Cycle): boolean {
+    if (cycle.extendedSupport === true) return true;
+    if (typeof cycle.extendedSupport === 'string') return true;
+    return false;
+  }
+
+  /**
+   * Calculate days since latest release
+   */
+  private calculateDaysSinceLatestRelease(cycle: Cycle): number | null {
+    if (!cycle.latestReleaseDate) return null;
+
+    try {
+      const latestRelease = parseISO(cycle.latestReleaseDate);
+      if (!isValid(latestRelease)) return null;
+      return differenceInDays(new Date(), latestRelease);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Analyze a single product cycle
    */
   analyzeProductCycle(product: string, cycle: Cycle): ProductVersionInfo {
@@ -103,6 +175,10 @@ export class EolAnalyzer {
     const eolDate = this.parseEolDate(cycle.eol);
     const supportDate = this.parseSupportDate(cycle.support);
     const releaseDate = cycle.releaseDate ? parseISO(cycle.releaseDate) : null;
+    const discontinuedDate = this.parseDiscontinuedDate(cycle.discontinued);
+    const extendedSupportDate = this.parseExtendedSupportDate(
+      cycle.extendedSupport
+    );
 
     return {
       product,
@@ -115,6 +191,17 @@ export class EolAnalyzer {
       isLts: this.isLts(cycle),
       supportDate: supportDate ? supportDate.toISOString().split('T')[0] : null,
       link: cycle.link || null,
+      // Extended fields
+      discontinuedDate: discontinuedDate
+        ? discontinuedDate.toISOString().split('T')[0]
+        : null,
+      isDiscontinued: this.isDiscontinued(cycle),
+      extendedSupportDate: extendedSupportDate
+        ? extendedSupportDate.toISOString().split('T')[0]
+        : null,
+      hasExtendedSupport: this.hasExtendedSupport(cycle),
+      latestReleaseDate: cycle.latestReleaseDate || null,
+      daysSinceLatestRelease: this.calculateDaysSinceLatestRelease(cycle),
       rawData: cycle,
     };
   }
@@ -283,6 +370,15 @@ export class EolAnalyzer {
     const approachingEolProducts = allResults.filter(
       (r) => r.status === EolStatus.APPROACHING_EOL
     );
+    const staleProducts = allResults.filter(
+      (r) =>
+        r.daysSinceLatestRelease !== null &&
+        r.daysSinceLatestRelease > this.eolThresholdDays
+    );
+    const discontinuedProducts = allResults.filter((r) => r.isDiscontinued);
+    const extendedSupportProducts = allResults.filter(
+      (r) => r.hasExtendedSupport
+    );
 
     const latestVersions: Record<string, string> = {};
     for (const result of allResults) {
@@ -294,17 +390,24 @@ export class EolAnalyzer {
     const summary = this.generateSummary(
       allResults,
       eolProducts,
-      approachingEolProducts
+      approachingEolProducts,
+      staleProducts,
+      discontinuedProducts
     );
 
     return {
       eolDetected: eolProducts.length > 0,
       approachingEol: approachingEolProducts.length > 0,
+      staleDetected: staleProducts.length > 0,
+      discontinuedDetected: discontinuedProducts.length > 0,
       totalProductsChecked: new Set(allResults.map((r) => r.product)).size,
       totalCyclesChecked: allResults.length,
       products: allResults,
       eolProducts,
       approachingEolProducts,
+      staleProducts,
+      discontinuedProducts,
+      extendedSupportProducts,
       latestVersions,
       summary,
     };
@@ -316,7 +419,9 @@ export class EolAnalyzer {
   private generateSummary(
     allProducts: ProductVersionInfo[],
     eolProducts: ProductVersionInfo[],
-    approachingEolProducts: ProductVersionInfo[]
+    approachingEolProducts: ProductVersionInfo[],
+    staleProducts: ProductVersionInfo[],
+    discontinuedProducts: ProductVersionInfo[]
   ): string {
     const lines: string[] = [];
 
@@ -348,7 +453,32 @@ export class EolAnalyzer {
       lines.push('');
     }
 
-    if (eolProducts.length === 0 && approachingEolProducts.length === 0) {
+    if (staleProducts.length > 0) {
+      lines.push(`⏰ Stale Versions (${staleProducts.length}):`);
+      for (const product of staleProducts) {
+        lines.push(
+          `  - ${product.product} ${product.cycle} (${product.daysSinceLatestRelease} days since last release)`
+        );
+      }
+      lines.push('');
+    }
+
+    if (discontinuedProducts.length > 0) {
+      lines.push(`🚫 Discontinued Products (${discontinuedProducts.length}):`);
+      for (const product of discontinuedProducts) {
+        lines.push(
+          `  - ${product.product} ${product.cycle}${product.discontinuedDate ? ` (Discontinued: ${product.discontinuedDate})` : ''}`
+        );
+      }
+      lines.push('');
+    }
+
+    if (
+      eolProducts.length === 0 &&
+      approachingEolProducts.length === 0 &&
+      staleProducts.length === 0 &&
+      discontinuedProducts.length === 0
+    ) {
       lines.push('✅ All tracked versions are actively supported!');
     }
 

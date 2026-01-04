@@ -12,7 +12,7 @@ describe('EolAnalyzer', () => {
     const baseUrl = 'https://endoflife.date';
 
     beforeEach(() => {
-        client = new EndOfLifeClient(baseUrl, 3600);
+        client = new EndOfLifeClient(`${baseUrl}/api/v1`, 3600);
         analyzer = new EolAnalyzer(client, 90);
         nock.cleanAll();
     });
@@ -145,8 +145,12 @@ describe('EolAnalyzer', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, mockCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: mockCycles,
+                });
 
             const results = await analyzer.analyzeProduct('python');
 
@@ -179,8 +183,12 @@ describe('EolAnalyzer', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, mockCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: mockCycles,
+                });
 
             const results = await analyzer.analyzeProduct('python', ['3.11', '3.10']);
 
@@ -210,12 +218,20 @@ describe('EolAnalyzer', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, pythonCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: pythonCycles,
+                });
 
             nock(baseUrl)
-                .get('/api/nodejs.json')
-                .reply(200, nodejsCycles);
+                .get('/api/v1/products/nodejs')
+                .reply(200, {
+                    name: 'nodejs',
+                    label: 'Node.js',
+                    releases: nodejsCycles,
+                });
 
             const results = await analyzer.analyzeProducts(['python', 'nodejs']);
 
@@ -235,8 +251,12 @@ describe('EolAnalyzer', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, mockCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: mockCycles,
+                });
 
             const results = await analyzer.analyzeProducts(['python']);
 
@@ -262,8 +282,12 @@ describe('EolAnalyzer', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, pythonCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: pythonCycles,
+                });
 
             const cyclesMap = {
                 python: ['3.11'],
@@ -286,8 +310,12 @@ describe('EolAnalyzer', () => {
             ];
 
             nock(baseUrl)
-                .get('/api/python.json')
-                .reply(200, mockCycles);
+                .get('/api/v1/products/python')
+                .reply(200, {
+                    name: 'python',
+                    label: 'Python',
+                    releases: mockCycles,
+                });
 
             const results = await analyzer.analyzeProducts(['python']);
 

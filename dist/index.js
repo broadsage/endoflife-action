@@ -55236,6 +55236,78 @@ class EolAnalyzer {
         return false;
     }
     /**
+     * Parse discontinued date from various formats
+     */
+    parseDiscontinuedDate(discontinued) {
+        if (!discontinued)
+            return null;
+        if (typeof discontinued === 'boolean')
+            return null;
+        try {
+            const date = (0, date_fns_1.parseISO)(discontinued);
+            return (0, date_fns_1.isValid)(date) ? date : null;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Check if product is discontinued
+     */
+    isDiscontinued(cycle) {
+        if (cycle.discontinued === true)
+            return true;
+        if (typeof cycle.discontinued === 'string') {
+            const date = this.parseDiscontinuedDate(cycle.discontinued);
+            if (date) {
+                return date <= new Date();
+            }
+        }
+        return false;
+    }
+    /**
+     * Parse extended support date from various formats
+     */
+    parseExtendedSupportDate(extendedSupport) {
+        if (!extendedSupport)
+            return null;
+        if (typeof extendedSupport === 'boolean')
+            return null;
+        try {
+            const date = (0, date_fns_1.parseISO)(extendedSupport);
+            return (0, date_fns_1.isValid)(date) ? date : null;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Check if cycle has extended support
+     */
+    hasExtendedSupport(cycle) {
+        if (cycle.extendedSupport === true)
+            return true;
+        if (typeof cycle.extendedSupport === 'string')
+            return true;
+        return false;
+    }
+    /**
+     * Calculate days since latest release
+     */
+    calculateDaysSinceLatestRelease(cycle) {
+        if (!cycle.latestReleaseDate)
+            return null;
+        try {
+            const latestRelease = (0, date_fns_1.parseISO)(cycle.latestReleaseDate);
+            if (!(0, date_fns_1.isValid)(latestRelease))
+                return null;
+            return (0, date_fns_1.differenceInDays)(new Date(), latestRelease);
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
      * Analyze a single product cycle
      */
     analyzeProductCycle(product, cycle) {
@@ -55243,6 +55315,8 @@ class EolAnalyzer {
         const eolDate = this.parseEolDate(cycle.eol);
         const supportDate = this.parseSupportDate(cycle.support);
         const releaseDate = cycle.releaseDate ? (0, date_fns_1.parseISO)(cycle.releaseDate) : null;
+        const discontinuedDate = this.parseDiscontinuedDate(cycle.discontinued);
+        const extendedSupportDate = this.parseExtendedSupportDate(cycle.extendedSupport);
         return {
             product,
             cycle: String(cycle.cycle),
@@ -55254,6 +55328,17 @@ class EolAnalyzer {
             isLts: this.isLts(cycle),
             supportDate: supportDate ? supportDate.toISOString().split('T')[0] : null,
             link: cycle.link || null,
+            // Extended fields
+            discontinuedDate: discontinuedDate
+                ? discontinuedDate.toISOString().split('T')[0]
+                : null,
+            isDiscontinued: this.isDiscontinued(cycle),
+            extendedSupportDate: extendedSupportDate
+                ? extendedSupportDate.toISOString().split('T')[0]
+                : null,
+            hasExtendedSupport: this.hasExtendedSupport(cycle),
+            latestReleaseDate: cycle.latestReleaseDate || null,
+            daysSinceLatestRelease: this.calculateDaysSinceLatestRelease(cycle),
             rawData: cycle,
         };
     }
@@ -55359,21 +55444,30 @@ class EolAnalyzer {
         }
         const eolProducts = allResults.filter((r) => r.status === types_1.EolStatus.END_OF_LIFE);
         const approachingEolProducts = allResults.filter((r) => r.status === types_1.EolStatus.APPROACHING_EOL);
+        const staleProducts = allResults.filter((r) => r.daysSinceLatestRelease !== null &&
+            r.daysSinceLatestRelease > this.eolThresholdDays);
+        const discontinuedProducts = allResults.filter((r) => r.isDiscontinued);
+        const extendedSupportProducts = allResults.filter((r) => r.hasExtendedSupport);
         const latestVersions = {};
         for (const result of allResults) {
             if (result.latestVersion && !latestVersions[result.product]) {
                 latestVersions[result.product] = result.latestVersion;
             }
         }
-        const summary = this.generateSummary(allResults, eolProducts, approachingEolProducts);
+        const summary = this.generateSummary(allResults, eolProducts, approachingEolProducts, staleProducts, discontinuedProducts);
         return {
             eolDetected: eolProducts.length > 0,
             approachingEol: approachingEolProducts.length > 0,
+            staleDetected: staleProducts.length > 0,
+            discontinuedDetected: discontinuedProducts.length > 0,
             totalProductsChecked: new Set(allResults.map((r) => r.product)).size,
             totalCyclesChecked: allResults.length,
             products: allResults,
             eolProducts,
             approachingEolProducts,
+            staleProducts,
+            discontinuedProducts,
+            extendedSupportProducts,
             latestVersions,
             summary,
         };
@@ -55381,7 +55475,7 @@ class EolAnalyzer {
     /**
      * Generate human-readable summary
      */
-    generateSummary(allProducts, eolProducts, approachingEolProducts) {
+    generateSummary(allProducts, eolProducts, approachingEolProducts, staleProducts, discontinuedProducts) {
         const lines = [];
         lines.push(`📊 EndOfLife Analysis Summary`);
         lines.push(`================================`);
@@ -55402,7 +55496,24 @@ class EolAnalyzer {
             }
             lines.push('');
         }
-        if (eolProducts.length === 0 && approachingEolProducts.length === 0) {
+        if (staleProducts.length > 0) {
+            lines.push(`⏰ Stale Versions (${staleProducts.length}):`);
+            for (const product of staleProducts) {
+                lines.push(`  - ${product.product} ${product.cycle} (${product.daysSinceLatestRelease} days since last release)`);
+            }
+            lines.push('');
+        }
+        if (discontinuedProducts.length > 0) {
+            lines.push(`🚫 Discontinued Products (${discontinuedProducts.length}):`);
+            for (const product of discontinuedProducts) {
+                lines.push(`  - ${product.product} ${product.cycle}${product.discontinuedDate ? ` (Discontinued: ${product.discontinuedDate})` : ''}`);
+            }
+            lines.push('');
+        }
+        if (eolProducts.length === 0 &&
+            approachingEolProducts.length === 0 &&
+            staleProducts.length === 0 &&
+            discontinuedProducts.length === 0) {
             lines.push('✅ All tracked versions are actively supported!');
         }
         return lines.join('\n');
@@ -55462,15 +55573,16 @@ const types_1 = __nccwpck_require__(38522);
 const version_utils_1 = __nccwpck_require__(62077);
 const error_utils_1 = __nccwpck_require__(82483);
 /**
- * Client for interacting with the EndOfLife.date API
+ * Client for interacting with the EndOfLife.date API v1
+ * API Documentation: https://endoflife.date/docs/api/v1/
  */
 class EndOfLifeClient {
     httpClient;
     baseUrl;
     cache;
     cacheTtl;
-    constructor(baseUrl = 'https://endoflife.date', cacheTtl = 3600) {
-        this.httpClient = new http_client_1.HttpClient('endoflife-action', undefined, {
+    constructor(baseUrl = 'https://endoflife.date/api/v1', cacheTtl = 3600) {
+        this.httpClient = new http_client_1.HttpClient('endoflife-action/v3', undefined, {
             allowRetries: true,
             maxRetries: 3,
         });
@@ -55502,9 +55614,10 @@ class EndOfLifeClient {
         });
     }
     /**
-     * Make HTTP request with error handling
+     * Make HTTP request with error handling and rate limit retry
+     * Implements exponential backoff for 429 (Rate Limit) responses
      */
-    async request(url, schema) {
+    async request(url, schema, retryAttempt = 0) {
         const cacheKey = url;
         const cached = this.getCached(cacheKey);
         if (cached) {
@@ -55515,6 +55628,17 @@ class EndOfLifeClient {
         try {
             const response = await this.httpClient.get(url);
             const body = await response.readBody();
+            // Handle rate limiting with exponential backoff
+            if (response.message.statusCode === 429) {
+                const maxRetries = 3;
+                if (retryAttempt < maxRetries) {
+                    const delay = Math.pow(2, retryAttempt) * 1000; // 1s, 2s, 4s
+                    core.warning(`Rate limited (429). Retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})...`);
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                    return this.request(url, schema, retryAttempt + 1);
+                }
+                throw new types_1.EndOfLifeApiError('Rate limit exceeded. Max retries reached.', 429);
+            }
             if (response.message.statusCode !== 200) {
                 throw new types_1.EndOfLifeApiError(`HTTP ${response.message.statusCode}: ${response.message.statusMessage}`, response.message.statusCode);
             }
@@ -55535,18 +55659,33 @@ class EndOfLifeClient {
     }
     /**
      * Get all available products
+     * API v1: GET /products
      */
     async getAllProducts() {
-        const url = `${this.baseUrl}/api/all.json`;
-        return this.request(url, types_1.AllProductsSchema);
+        const url = `${this.baseUrl}/products`;
+        // v1 API returns an array of product objects with name, label, etc.
+        // We need to extract just the names for backward compatibility
+        const response = await this.request(url, zod_1.z.array(zod_1.z.object({
+            name: zod_1.z.string(),
+            label: zod_1.z.string().optional(),
+            category: zod_1.z.string().optional(),
+        })));
+        return response.map((p) => p.name);
     }
     /**
-     * Get all cycles for a product
+     * Get all release cycles for a product
+     * API v1: GET /products/{product}
+     * Returns the full product object including releases array
      */
     async getProductCycles(product) {
-        const url = `${this.baseUrl}/api/${product}.json`;
+        const url = `${this.baseUrl}/products/${product}`;
         try {
-            return await this.request(url, zod_1.z.array(types_1.CycleSchema));
+            const response = await this.request(url, zod_1.z.object({
+                name: zod_1.z.string(),
+                label: zod_1.z.string().optional(),
+                releases: zod_1.z.array(types_1.CycleSchema),
+            }));
+            return response.releases;
         }
         catch (error) {
             if (error instanceof types_1.EndOfLifeApiError) {
@@ -55556,12 +55695,14 @@ class EndOfLifeClient {
         }
     }
     /**
-     * Get a specific cycle for a product
+     * Get a specific release cycle for a product
+     * API v1: GET /products/{product}/releases/{release}
      */
     async getProductCycle(product, cycle) {
-        // Replace slashes with dashes as per API spec
-        const normalizedCycle = cycle.replace(/\//g, '-');
-        const url = `${this.baseUrl}/api/${product}/${normalizedCycle}.json`;
+        // v1 API uses 'releases' instead of cycles, but the cycle name remains the same
+        // URL-encode the cycle to handle special characters like slashes
+        const encodedCycle = encodeURIComponent(cycle);
+        const url = `${this.baseUrl}/products/${product}/releases/${encodedCycle}`;
         try {
             return await this.request(url, types_1.CycleSchema);
         }
@@ -55583,15 +55724,15 @@ class EndOfLifeClient {
             : [(0, version_utils_1.cleanVersion)(version)];
         for (const v of versions) {
             try {
-                core.debug(`Trying to fetch cycle info for ${product}/${v}`);
+                core.debug(`Trying to fetch release info for ${product}/${v}`);
                 const info = await this.getProductCycle(product, v);
                 if (info) {
-                    core.info(`✓ Matched ${product} version ${version} to cycle ${v}`);
+                    core.info(`✓ Matched ${product} version ${version} to release ${v}`);
                     return info;
                 }
             }
             catch (error) {
-                core.debug(`No cycle found for ${product}/${v}`);
+                core.debug(`No release found for ${product}/${v}`);
             }
         }
         return null;
@@ -55610,6 +55751,71 @@ class EndOfLifeClient {
             size: this.cache.size,
             keys: Array.from(this.cache.keys()),
         };
+    }
+    /**
+     * Get full data for all products (bulk dump)
+     * API v1: GET /products/full
+     * Warning: This endpoint returns a large amount of data
+     */
+    async getProductsFullData() {
+        const url = `${this.baseUrl}/products/full`;
+        return await this.request(url, zod_1.z.array(types_1.FullProductSchema));
+    }
+    /**
+     * Get the latest release cycle for a product
+     * API v1: GET /products/{product}/releases/latest
+     */
+    async getLatestRelease(product) {
+        const url = `${this.baseUrl}/products/${product}/releases/latest`;
+        try {
+            return await this.request(url, types_1.CycleSchema);
+        }
+        catch (error) {
+            if (error instanceof types_1.EndOfLifeApiError) {
+                error.product = product;
+            }
+            throw error;
+        }
+    }
+    /**
+     * Get all available categories
+     * API v1: GET /categories
+     */
+    async getCategories() {
+        const url = `${this.baseUrl}/categories`;
+        return await this.request(url, types_1.StringListSchema);
+    }
+    /**
+     * Get all products in a specific category
+     * API v1: GET /categories/{category}
+     */
+    async getProductsByCategory(category) {
+        const url = `${this.baseUrl}/categories/${category}`;
+        return await this.request(url, zod_1.z.array(types_1.ProductSummarySchema));
+    }
+    /**
+     * Get all available tags
+     * API v1: GET /tags
+     */
+    async getTags() {
+        const url = `${this.baseUrl}/tags`;
+        return await this.request(url, types_1.StringListSchema);
+    }
+    /**
+     * Get all products with a specific tag
+     * API v1: GET /tags/{tag}
+     */
+    async getProductsByTag(tag) {
+        const url = `${this.baseUrl}/tags/${tag}`;
+        return await this.request(url, zod_1.z.array(types_1.ProductSummarySchema));
+    }
+    /**
+     * Get all identifier types (e.g., purl, cpe)
+     * API v1: GET /identifiers
+     */
+    async getIdentifierTypes() {
+        const url = `${this.baseUrl}/identifiers`;
+        return await this.request(url, types_1.StringListSchema);
     }
 }
 exports.EndOfLifeClient = EndOfLifeClient;
@@ -56046,6 +56252,9 @@ function getInputs() {
     const eolThresholdDays = parseInt(core.getInput('eol-threshold-days') || '90', 10);
     const failOnEol = core.getBooleanInput('fail-on-eol');
     const failOnApproachingEol = core.getBooleanInput('fail-on-approaching-eol');
+    const failOnStale = core.getBooleanInput('fail-on-stale');
+    const stalenessThresholdDays = parseInt(core.getInput('staleness-threshold-days') || '365', 10);
+    const includeDiscontinued = core.getBooleanInput('include-discontinued');
     const outputFormat = (core.getInput('output-format') ||
         'summary');
     const outputFile = core.getInput('output-file') || '';
@@ -56055,7 +56264,7 @@ function getInputs() {
     const issueLabels = core.getInput('issue-labels') || 'dependencies,eol,security';
     const includeLatestVersion = core.getBooleanInput('include-latest-version');
     const includeSupportInfo = core.getBooleanInput('include-support-info');
-    const customApiUrl = core.getInput('custom-api-url') || 'https://endoflife.date';
+    const customApiUrl = core.getInput('custom-api-url') || 'https://endoflife.date/api/v1';
     // File extraction inputs
     const filePath = core.getInput('file-path') || '';
     const fileKey = core.getInput('file-key') || '';
@@ -56082,6 +56291,9 @@ function getInputs() {
         eolThresholdDays,
         failOnEol,
         failOnApproachingEol,
+        failOnStale,
+        stalenessThresholdDays,
+        includeDiscontinued,
         outputFormat,
         outputFile,
         cacheTtl,
@@ -57615,7 +57827,7 @@ function createIssueBody(results) {
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2025 Broadsage
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ValidationError = exports.EndOfLifeApiError = exports.EolStatus = exports.ActionInputsSchema = exports.ProductCyclesSchema = exports.AllProductsSchema = exports.CycleSchema = void 0;
+exports.ValidationError = exports.EndOfLifeApiError = exports.EolStatus = exports.ActionInputsSchema = exports.ProductCyclesSchema = exports.StringListSchema = exports.FullProductSchema = exports.ProductSummarySchema = exports.AllProductsSchema = exports.CycleSchema = void 0;
 const zod_1 = __nccwpck_require__(50924);
 /**
  * Schema for a single release cycle from the EndOfLife.date API
@@ -57637,6 +57849,27 @@ exports.CycleSchema = zod_1.z.object({
  */
 exports.AllProductsSchema = zod_1.z.array(zod_1.z.string());
 /**
+ * Schema for product summary (from /products endpoint)
+ */
+exports.ProductSummarySchema = zod_1.z.object({
+    name: zod_1.z.string(),
+    label: zod_1.z.string().optional(),
+    category: zod_1.z.string().optional(),
+});
+/**
+ * Schema for full product data (from /products/{product} endpoint)
+ */
+exports.FullProductSchema = zod_1.z.object({
+    name: zod_1.z.string(),
+    label: zod_1.z.string().optional(),
+    category: zod_1.z.string().optional(),
+    releases: zod_1.z.array(exports.CycleSchema),
+});
+/**
+ * Schema for categories and tags (simple string arrays)
+ */
+exports.StringListSchema = zod_1.z.array(zod_1.z.string());
+/**
  * Schema for product cycles mapping
  */
 exports.ProductCyclesSchema = zod_1.z.record(zod_1.z.string(), zod_1.z.array(zod_1.z.string()));
@@ -57650,6 +57883,9 @@ exports.ActionInputsSchema = zod_1.z.object({
     eolThresholdDays: zod_1.z.number().int().positive(),
     failOnEol: zod_1.z.boolean(),
     failOnApproachingEol: zod_1.z.boolean(),
+    failOnStale: zod_1.z.boolean(),
+    stalenessThresholdDays: zod_1.z.number().int().positive(),
+    includeDiscontinued: zod_1.z.boolean(),
     outputFormat: zod_1.z.enum(['json', 'markdown', 'summary']),
     outputFile: zod_1.z.string(),
     cacheTtl: zod_1.z.number().int().positive(),

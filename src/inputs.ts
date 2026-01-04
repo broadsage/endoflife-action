@@ -18,6 +18,12 @@ export function getInputs(): ActionInputs {
   );
   const failOnEol = core.getBooleanInput('fail-on-eol');
   const failOnApproachingEol = core.getBooleanInput('fail-on-approaching-eol');
+  const failOnStale = core.getBooleanInput('fail-on-stale');
+  const stalenessThresholdDays = parseInt(
+    core.getInput('staleness-threshold-days') || '365',
+    10
+  );
+  const includeDiscontinued = core.getBooleanInput('include-discontinued');
   const outputFormat = (core.getInput('output-format') ||
     'summary') as ActionInputs['outputFormat'];
   const outputFile = core.getInput('output-file') || '';
@@ -29,7 +35,7 @@ export function getInputs(): ActionInputs {
   const includeLatestVersion = core.getBooleanInput('include-latest-version');
   const includeSupportInfo = core.getBooleanInput('include-support-info');
   const customApiUrl =
-    core.getInput('custom-api-url') || 'https://endoflife.date';
+    core.getInput('custom-api-url') || 'https://endoflife.date/api/v1';
 
   // File extraction inputs
   const filePath = core.getInput('file-path') || '';
@@ -64,6 +70,9 @@ export function getInputs(): ActionInputs {
     eolThresholdDays,
     failOnEol,
     failOnApproachingEol,
+    failOnStale,
+    stalenessThresholdDays,
+    includeDiscontinued,
     outputFormat,
     outputFile,
     cacheTtl,
