@@ -18,7 +18,7 @@ import {
   ValidationError,
 } from './types';
 import { cleanVersion, getSemanticFallbacks } from './utils/version-utils';
-import { getErrorMessage } from './utils/error-utils';
+import { getErrorMessage, handleClientError } from './utils/error-utils';
 
 /**
  * Client for interacting with the EndOfLife.date API v1
@@ -169,10 +169,7 @@ export class EndOfLifeClient {
       );
       return response.releases;
     } catch (error) {
-      if (error instanceof EndOfLifeApiError) {
-        error.product = product;
-      }
-      throw error;
+      handleClientError(error, { product });
     }
   }
 
@@ -189,11 +186,7 @@ export class EndOfLifeClient {
     try {
       return await this.request(url, CycleSchema);
     } catch (error) {
-      if (error instanceof EndOfLifeApiError) {
-        error.product = product;
-        error.cycle = cycle;
-      }
-      throw error;
+      handleClientError(error, { product, cycle });
     }
   }
 
@@ -262,10 +255,7 @@ export class EndOfLifeClient {
     try {
       return await this.request(url, CycleSchema);
     } catch (error) {
-      if (error instanceof EndOfLifeApiError) {
-        error.product = product;
-      }
-      throw error;
+      handleClientError(error, { product });
     }
   }
 

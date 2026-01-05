@@ -5,6 +5,8 @@
  * Utility functions for error handling
  */
 
+import { EndOfLifeApiError } from '../types';
+
 /**
  * Extract error message from unknown error type
  */
@@ -31,4 +33,30 @@ export function createError(message: string, cause?: unknown): Error {
     error.stack = `${error.stack}\nCaused by: ${cause.stack}`;
   }
   return error;
+}
+
+/**
+ * Handle client errors with context information
+ * This centralizes error handling logic to eliminate duplication
+ *
+ * @param error - The error to handle
+ * @param context - Context information (product, cycle, etc.)
+ * @throws The error with added context
+ * @example
+ * try {
+ *   return await this.request(url, schema);
+ * } catch (error) {
+ *   handleClientError(error, { product: 'python', cycle: '3.7' });
+ * }
+ */
+export function handleClientError(
+  error: unknown,
+  context: { product?: string; cycle?: string } = {}
+): never {
+  if (error instanceof EndOfLifeApiError) {
+    // Add context to API errors
+    if (context.product) error.product = context.product;
+    if (context.cycle) error.cycle = context.cycle;
+  }
+  throw error;
 }

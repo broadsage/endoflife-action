@@ -63,6 +63,9 @@ export function getInputs(): ActionInputs {
   const versionSortOrder = (core.getInput('version-sort-order') ||
     'newest-first') as ActionInputs['versionSortOrder'];
 
+  const filterByCategory = core.getInput('filter-by-category') || '';
+  const filterByTag = core.getInput('filter-by-tag') || '';
+
   return {
     products,
     cycles,
@@ -95,6 +98,8 @@ export function getInputs(): ActionInputs {
     maxReleaseDate,
     maxVersions,
     versionSortOrder,
+    filterByCategory,
+    filterByTag,
   };
 }
 

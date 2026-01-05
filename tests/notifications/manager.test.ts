@@ -67,6 +67,8 @@ describe('NotificationManager', () => {
         mockResults = {
             eolDetected: true,
             approachingEol: false,
+            staleDetected: false,
+            discontinuedDetected: false,
             eolProducts: [
                 {
                     product: 'python',
@@ -79,6 +81,12 @@ describe('NotificationManager', () => {
                     isLts: false,
                     supportDate: null,
                     link: null,
+                    discontinuedDate: null,
+                    isDiscontinued: false,
+                    extendedSupportDate: null,
+                    hasExtendedSupport: false,
+                    latestReleaseDate: null,
+                    daysSinceLatestRelease: null,
                     rawData: {
                         cycle: '2.7',
                         eol: '2020-01-01',
@@ -89,6 +97,9 @@ describe('NotificationManager', () => {
                 },
             ],
             approachingEolProducts: [],
+            staleProducts: [],
+            discontinuedProducts: [],
+            extendedSupportProducts: [],
             products: [],
             totalProductsChecked: 1,
             totalCyclesChecked: 1,
@@ -274,6 +285,30 @@ describe('NotificationManager', () => {
             const manager = new NotificationManager(config);
 
             expect(manager.getChannelNames()).toEqual([]);
+        });
+    });
+
+    describe('Promise rejection handling', () => {
+        it('should handle unexpected Promise rejection in sendAll', async () => {
+            const manager = new NotificationManager(config);
+
+            // Create a channel that throws during formatMessage (before send)
+            const badChannel = new MockChannel('Bad', NotificationChannelType.SLACK);
+            // Override formatMessage to throw an error that causes Promise rejection
+            Object.defineProperty(badChannel, 'formatMessage', {
+                value: () => {
+                    throw new Error('Unexpected format error');
+                },
+            });
+
+            manager.addChannel(badChannel);
+
+            const results = await manager.sendAll(mockResults);
+
+            // The promise should be handled gracefully
+            expect(results).toHaveLength(1);
+            expect(results[0].success).toBe(false);
+            expect(results[0].error?.message).toContain('Unexpected format error');
         });
     });
 });

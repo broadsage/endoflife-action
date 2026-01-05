@@ -43,6 +43,8 @@ describe('BaseNotificationChannel', () => {
         mockResults = {
             eolDetected: true,
             approachingEol: false,
+            staleDetected: false,
+            discontinuedDetected: false,
             eolProducts: [
                 {
                     product: 'python',
@@ -55,6 +57,12 @@ describe('BaseNotificationChannel', () => {
                     isLts: false,
                     supportDate: null,
                     link: null,
+                    discontinuedDate: null,
+                    isDiscontinued: false,
+                    extendedSupportDate: null,
+                    hasExtendedSupport: false,
+                    latestReleaseDate: null,
+                    daysSinceLatestRelease: null,
                     rawData: {
                         cycle: '2.7',
                         eol: '2020-01-01',
@@ -65,6 +73,9 @@ describe('BaseNotificationChannel', () => {
                 },
             ],
             approachingEolProducts: [],
+            staleProducts: [],
+            discontinuedProducts: [],
+            extendedSupportProducts: [],
             products: [],
             totalProductsChecked: 1,
             totalCyclesChecked: 1,
@@ -222,6 +233,52 @@ describe('BaseNotificationChannel', () => {
             expect(channel['getColorForSeverity'](NotificationSeverity.ERROR)).toBe('#FF0000');
             expect(channel['getColorForSeverity'](NotificationSeverity.WARNING)).toBe('#FFA500');
             expect(channel['getColorForSeverity'](NotificationSeverity.INFO)).toBe('#00FF00');
+        });
+
+        it('should return default gray color for unknown severity', () => {
+            // Test the default case by passing an invalid value
+            expect(channel['getColorForSeverity']('unknown' as NotificationSeverity)).toBe('#808080');
+        });
+    });
+
+    describe('buildFields', () => {
+        it('should include approaching EOL field when approaching EOL is true', () => {
+            mockResults.eolDetected = false;
+            mockResults.approachingEol = true;
+            mockResults.eolProducts = [];
+            mockResults.approachingEolProducts = [
+                {
+                    product: 'nodejs',
+                    cycle: '18',
+                    status: EolStatus.APPROACHING_EOL,
+                    eolDate: '2025-04-30',
+                    daysUntilEol: 30,
+                    releaseDate: '2022-04-19',
+                    latestVersion: '18.19.0',
+                    isLts: true,
+                    supportDate: null,
+                    link: null,
+                    discontinuedDate: null,
+                    isDiscontinued: false,
+                    extendedSupportDate: null,
+                    hasExtendedSupport: false,
+                    latestReleaseDate: null,
+                    daysSinceLatestRelease: null,
+                    rawData: {
+                        cycle: '18',
+                        eol: '2025-04-30',
+                        releaseDate: '2022-04-19',
+                        latest: '18.19.0',
+                        lts: true,
+                    },
+                },
+            ];
+
+            const message = channel.formatMessage(mockResults);
+
+            const approachingField = message.fields.find((f) => f.name === 'Approaching EOL');
+            expect(approachingField).toBeDefined();
+            expect(approachingField?.value).toBe('1');
         });
     });
 

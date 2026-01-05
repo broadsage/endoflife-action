@@ -317,5 +317,72 @@ image:
                 extractor.extractFromFile(filePath, FileFormat.JSON, 'key')
             ).toThrow();
         });
+
+        it('should throw error when YAML key path is null in nested path', () => {
+            const yamlContent = `
+parent:
+  child: null
+`;
+            const filePath = path.join(tempDir, 'test.yaml');
+            fs.writeFileSync(filePath, yamlContent);
+
+            expect(() =>
+                extractor.extractFromFile(filePath, FileFormat.YAML, 'parent.child.grandchild')
+            ).toThrow('Key path "parent.child.grandchild" not found in YAML file');
+        });
+
+        it('should throw error when accessing key on array in YAML', () => {
+            const yamlContent = `
+items:
+  - name: first
+  - name: second
+`;
+            const filePath = path.join(tempDir, 'test.yaml');
+            fs.writeFileSync(filePath, yamlContent);
+
+            expect(() =>
+                extractor.extractFromFile(filePath, FileFormat.YAML, 'items.name')
+            ).toThrow('Cannot access key "name" on non-object value');
+        });
+
+        it('should throw error when JSON key path is null in nested path', () => {
+            const jsonContent = { parent: { child: null } };
+            const filePath = path.join(tempDir, 'test.json');
+            fs.writeFileSync(filePath, JSON.stringify(jsonContent));
+
+            expect(() =>
+                extractor.extractFromFile(filePath, FileFormat.JSON, 'parent.child.grandchild')
+            ).toThrow('Key path "parent.child.grandchild" not found in JSON file');
+        });
+
+        it('should throw error when accessing key on array in JSON', () => {
+            const jsonContent = { items: [{ name: 'first' }, { name: 'second' }] };
+            const filePath = path.join(tempDir, 'test.json');
+            fs.writeFileSync(filePath, JSON.stringify(jsonContent));
+
+            expect(() =>
+                extractor.extractFromFile(filePath, FileFormat.JSON, 'items.name')
+            ).toThrow('Cannot access key "name" on non-object value');
+        });
+
+        it('should throw error for regex extraction without pattern', () => {
+            const content = 'Some content here';
+            const filePath = path.join(tempDir, 'test.txt');
+            fs.writeFileSync(filePath, content);
+
+            expect(() =>
+                extractor.extractFromFile(filePath, FileFormat.TEXT)
+            ).toThrow('version-regex is required for regex extraction');
+        });
+
+        it('should throw error when file-key not provided for JSON', () => {
+            const jsonContent = { version: '1.0.0' };
+            const filePath = path.join(tempDir, 'test.json');
+            fs.writeFileSync(filePath, JSON.stringify(jsonContent));
+
+            expect(() =>
+                extractor.extractFromFile(filePath, FileFormat.JSON)
+            ).toThrow('file-key is required for JSON extraction');
+        });
     });
 });

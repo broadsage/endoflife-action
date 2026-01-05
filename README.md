@@ -143,6 +143,8 @@ jobs:
 | `max-release-date`   | Maximum release date (YYYY-MM-DD or YYYY)    | `''`           |
 | `max-versions`       | Maximum number of versions to check          | `''`           |
 | `version-sort-order` | Sort order: `newest-first` or `oldest-first` | `newest-first` |
+| `filter-by-category` | Filter products by category (e.g. `os`)      | `''`           |
+| `filter-by-tag`      | Filter products by tag (e.g. `linux`)        | `''`           |
 
 </details>
 

@@ -2,13 +2,111 @@
 // SPDX-FileCopyrightText: 2025 Broadsage
 
 import {
+    getInputs,
     parseProducts,
     parseCycles,
     validateInputs,
 } from '../src/inputs';
 import { ActionInputs } from '../src/types';
+import * as core from '@actions/core';
+
+// Mock @actions/core
+jest.mock('@actions/core');
 
 describe('Input Parsing and Validation', () => {
+    const mockCore = core as jest.Mocked<typeof core>;
+
+    describe('getInputs', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+
+            // Set default mock return values
+            mockCore.getInput.mockImplementation((name: string) => {
+                const defaults: Record<string, string> = {
+                    'products': 'python,nodejs',
+                    'cycles': '{}',
+                    'eol-threshold-days': '90',
+                    'staleness-threshold-days': '365',
+                    'output-format': 'summary',
+                    'output-file': '',
+                    'cache-ttl': '3600',
+                    'github-token': '',
+                    'issue-labels': 'dependencies,eol,security',
+                    'custom-api-url': 'https://endoflife.date/api/v1',
+                    'file-path': '',
+                    'file-key': '',
+                    'file-format': 'yaml',
+                    'version-regex': '',
+                    'version': '',
+                    'min-release-date': '',
+                    'max-release-date': '',
+                    'max-versions': '',
+                    'version-sort-order': 'newest-first',
+                };
+                return defaults[name] || '';
+            });
+
+            mockCore.getBooleanInput.mockImplementation((name: string) => {
+                const defaults: Record<string, boolean> = {
+                    'check-eol': true,
+                    'fail-on-eol': false,
+                    'fail-on-approaching-eol': false,
+                    'fail-on-stale': false,
+                    'include-discontinued': true,
+                    'create-issue-on-eol': false,
+                    'include-latest-version': true,
+                    'include-support-info': true,
+                    'semantic-version-fallback': true,
+                    'output-matrix': false,
+                    'exclude-eol-from-matrix': true,
+                    'exclude-approaching-eol-from-matrix': false,
+                };
+                return defaults[name] || false;
+            });
+        });
+
+        it('should parse all inputs with default values', () => {
+            const inputs = getInputs();
+
+            expect(inputs.products).toBe('python,nodejs');
+            expect(inputs.cycles).toBe('{}');
+            expect(inputs.checkEol).toBe(true);
+            expect(inputs.eolThresholdDays).toBe(90);
+            expect(inputs.stalenessThresholdDays).toBe(365);
+            expect(inputs.includeDiscontinued).toBe(true);
+        });
+
+        it('should parse custom values', () => {
+            mockCore.getInput.mockImplementation((name: string) => {
+                if (name === 'products') return 'ubuntu';
+                if (name === 'eol-threshold-days') return '30';
+                if (name === 'staleness-threshold-days') return '180';
+                return '';
+            });
+
+            const inputs = getInputs();
+
+            expect(inputs.products).toBe('ubuntu');
+            expect(inputs.eolThresholdDays).toBe(30);
+            expect(inputs.stalenessThresholdDays).toBe(180);
+        });
+
+        it('should handle empty max-versions', () => {
+            const inputs = getInputs();
+            expect(inputs.maxVersions).toBeNull();
+        });
+
+        it('should parse max-versions when provided', () => {
+            mockCore.getInput.mockImplementation((name: string) => {
+                if (name === 'max-versions') return '10';
+                return '';
+            });
+
+            const inputs = getInputs();
+            expect(inputs.maxVersions).toBe(10);
+        });
+    });
+
     describe('parseProducts', () => {
         it('should parse comma-separated products', () => {
             const input = 'python,nodejs,ubuntu';
@@ -92,6 +190,9 @@ describe('Input Parsing and Validation', () => {
             eolThresholdDays: 90,
             failOnEol: false,
             failOnApproachingEol: false,
+            failOnStale: false,
+            stalenessThresholdDays: 365,
+            includeDiscontinued: true,
             outputFormat: 'summary',
             outputFile: '',
             cacheTtl: 3600,
@@ -296,6 +397,42 @@ describe('Input Parsing and Validation', () => {
             expect(() => validateInputs(inputs)).toThrow(
                 'version-sort-order must be newest-first or oldest-first'
             );
+        });
+
+        it('should validate minReleaseDate when provided', () => {
+            const inputs = {
+                ...validInputs,
+                minReleaseDate: 'invalid-date',
+            };
+
+            expect(() => validateInputs(inputs)).toThrow('Invalid date format');
+        });
+
+        it('should validate maxReleaseDate when provided', () => {
+            const inputs = {
+                ...validInputs,
+                maxReleaseDate: 'invalid-date',
+            };
+
+            expect(() => validateInputs(inputs)).toThrow('Invalid date format');
+        });
+
+        it('should accept valid minReleaseDate', () => {
+            const inputs = {
+                ...validInputs,
+                minReleaseDate: '2020',
+            };
+
+            expect(() => validateInputs(inputs)).not.toThrow();
+        });
+
+        it('should accept valid maxReleaseDate', () => {
+            const inputs = {
+                ...validInputs,
+                maxReleaseDate: '2025-12-31',
+            };
+
+            expect(() => validateInputs(inputs)).not.toThrow();
         });
     });
 

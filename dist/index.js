@@ -55688,10 +55688,7 @@ class EndOfLifeClient {
             return response.releases;
         }
         catch (error) {
-            if (error instanceof types_1.EndOfLifeApiError) {
-                error.product = product;
-            }
-            throw error;
+            (0, error_utils_1.handleClientError)(error, { product });
         }
     }
     /**
@@ -55707,11 +55704,7 @@ class EndOfLifeClient {
             return await this.request(url, types_1.CycleSchema);
         }
         catch (error) {
-            if (error instanceof types_1.EndOfLifeApiError) {
-                error.product = product;
-                error.cycle = cycle;
-            }
-            throw error;
+            (0, error_utils_1.handleClientError)(error, { product, cycle });
         }
     }
     /**
@@ -55771,10 +55764,7 @@ class EndOfLifeClient {
             return await this.request(url, types_1.CycleSchema);
         }
         catch (error) {
-            if (error instanceof types_1.EndOfLifeApiError) {
-                error.product = product;
-            }
-            throw error;
+            (0, error_utils_1.handleClientError)(error, { product });
         }
     }
     /**
@@ -56037,8 +56027,42 @@ async function run() {
         const cyclesMap = (0, inputs_1.parseCycles)(inputs.cycles);
         // Initialize client
         const client = new client_1.EndOfLifeClient(inputs.customApiUrl, inputs.cacheTtl);
-        // Handle "all" products
-        if (products.length === 1 && products[0].toLowerCase() === 'all') {
+        // Handle "all" products and filtering
+        if (inputs.filterByCategory || inputs.filterByTag) {
+            let allowedProducts = null;
+            if (inputs.filterByCategory) {
+                core.info(`Filtering products by category: ${inputs.filterByCategory}`);
+                const catProds = await client.getProductsByCategory(inputs.filterByCategory);
+                allowedProducts = new Set(catProds.map((p) => p.name));
+            }
+            if (inputs.filterByTag) {
+                core.info(`Filtering products by tag: ${inputs.filterByTag}`);
+                const tagProds = await client.getProductsByTag(inputs.filterByTag);
+                const tagNames = tagProds.map((p) => p.name);
+                if (allowedProducts) {
+                    // Intersect
+                    allowedProducts = new Set(tagNames.filter((x) => allowedProducts.has(x)));
+                }
+                else {
+                    allowedProducts = new Set(tagNames);
+                }
+            }
+            if (allowedProducts) {
+                if (products.length === 1 && products[0].toLowerCase() === 'all') {
+                    products = Array.from(allowedProducts);
+                }
+                else {
+                    // Filter explicit list
+                    const originalCount = products.length;
+                    products = products.filter((p) => allowedProducts.has(p));
+                    if (products.length < originalCount) {
+                        core.info(`Filtered ${originalCount - products.length} products based on criteria.`);
+                    }
+                }
+                core.info(`Found ${products.length} matching products`);
+            }
+        }
+        else if (products.length === 1 && products[0].toLowerCase() === 'all') {
             core.info('Fetching all available products...');
             products = await client.getAllProducts();
             core.info(`Found ${products.length} products`);
@@ -56284,6 +56308,8 @@ function getInputs() {
     const maxVersions = maxVersionsInput ? parseInt(maxVersionsInput, 10) : null;
     const versionSortOrder = (core.getInput('version-sort-order') ||
         'newest-first');
+    const filterByCategory = core.getInput('filter-by-category') || '';
+    const filterByTag = core.getInput('filter-by-tag') || '';
     return {
         products,
         cycles,
@@ -56316,6 +56342,8 @@ function getInputs() {
         maxReleaseDate,
         maxVersions,
         versionSortOrder,
+        filterByCategory,
+        filterByTag,
     };
 }
 /**
@@ -57911,6 +57939,8 @@ exports.ActionInputsSchema = zod_1.z.object({
     maxReleaseDate: zod_1.z.string(),
     maxVersions: zod_1.z.number().int().positive().optional().nullable(),
     versionSortOrder: zod_1.z.enum(['newest-first', 'oldest-first']),
+    filterByCategory: zod_1.z.string().optional(),
+    filterByTag: zod_1.z.string().optional(),
 });
 /**
  * EOL Status enumeration
@@ -57955,7 +57985,7 @@ exports.ValidationError = ValidationError;
 /***/ }),
 
 /***/ 82483:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -57965,9 +57995,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getErrorMessage = getErrorMessage;
 exports.isErrorInstance = isErrorInstance;
 exports.createError = createError;
+exports.handleClientError = handleClientError;
 /**
  * Utility functions for error handling
  */
+const types_1 = __nccwpck_require__(38522);
 /**
  * Extract error message from unknown error type
  */
@@ -57989,6 +58021,30 @@ function createError(message, cause) {
         error.stack = `${error.stack}\nCaused by: ${cause.stack}`;
     }
     return error;
+}
+/**
+ * Handle client errors with context information
+ * This centralizes error handling logic to eliminate duplication
+ *
+ * @param error - The error to handle
+ * @param context - Context information (product, cycle, etc.)
+ * @throws The error with added context
+ * @example
+ * try {
+ *   return await this.request(url, schema);
+ * } catch (error) {
+ *   handleClientError(error, { product: 'python', cycle: '3.7' });
+ * }
+ */
+function handleClientError(error, context = {}) {
+    if (error instanceof types_1.EndOfLifeApiError) {
+        // Add context to API errors
+        if (context.product)
+            error.product = context.product;
+        if (context.cycle)
+            error.cycle = context.cycle;
+    }
+    throw error;
 }
 
 

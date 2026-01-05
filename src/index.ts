@@ -49,8 +49,49 @@ async function run(): Promise<void> {
     // Initialize client
     const client = new EndOfLifeClient(inputs.customApiUrl, inputs.cacheTtl);
 
-    // Handle "all" products
-    if (products.length === 1 && products[0].toLowerCase() === 'all') {
+    // Handle "all" products and filtering
+    if (inputs.filterByCategory || inputs.filterByTag) {
+      let allowedProducts: Set<string> | null = null;
+
+      if (inputs.filterByCategory) {
+        core.info(`Filtering products by category: ${inputs.filterByCategory}`);
+        const catProds = await client.getProductsByCategory(
+          inputs.filterByCategory
+        );
+        allowedProducts = new Set(catProds.map((p) => p.name));
+      }
+
+      if (inputs.filterByTag) {
+        core.info(`Filtering products by tag: ${inputs.filterByTag}`);
+        const tagProds = await client.getProductsByTag(inputs.filterByTag);
+        const tagNames = tagProds.map((p) => p.name);
+
+        if (allowedProducts) {
+          // Intersect
+          allowedProducts = new Set(
+            tagNames.filter((x) => allowedProducts!.has(x))
+          );
+        } else {
+          allowedProducts = new Set(tagNames);
+        }
+      }
+
+      if (allowedProducts) {
+        if (products.length === 1 && products[0].toLowerCase() === 'all') {
+          products = Array.from(allowedProducts);
+        } else {
+          // Filter explicit list
+          const originalCount = products.length;
+          products = products.filter((p) => allowedProducts!.has(p));
+          if (products.length < originalCount) {
+            core.info(
+              `Filtered ${originalCount - products.length} products based on criteria.`
+            );
+          }
+        }
+        core.info(`Found ${products.length} matching products`);
+      }
+    } else if (products.length === 1 && products[0].toLowerCase() === 'all') {
       core.info('Fetching all available products...');
       products = await client.getAllProducts();
       core.info(`Found ${products.length} products`);

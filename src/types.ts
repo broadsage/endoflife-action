@@ -123,6 +123,8 @@ export const ActionInputsSchema = z.object({
   maxReleaseDate: z.string(),
   maxVersions: z.number().int().positive().optional().nullable(),
   versionSortOrder: z.enum(['newest-first', 'oldest-first']),
+  filterByCategory: z.string().optional(),
+  filterByTag: z.string().optional(),
 });
 
 export type ActionInputs = z.infer<typeof ActionInputsSchema>;

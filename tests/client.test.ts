@@ -250,4 +250,99 @@ describe('EndOfLifeClient', () => {
             }
         });
     });
+
+    describe('rate limiting', () => {
+        it('should retry on 429 response with exponential backoff', async () => {
+            const mockProducts = [{ name: 'python', label: 'Python' }];
+
+            // First response is 429, second is success
+            nock(baseUrl)
+                .get('/api/v1/products')
+                .reply(429, 'Rate Limited')
+                .get('/api/v1/products')
+                .reply(200, mockProducts);
+
+            const products = await client.getAllProducts();
+
+            expect(products).toEqual(['python']);
+            expect(nock.isDone()).toBe(true);
+        }, 10000);
+
+        it('should throw error after max retries on 429', async () => {
+            // All requests return 429
+            nock(baseUrl)
+                .get('/api/v1/products')
+                .times(4)
+                .reply(429, 'Rate Limited');
+
+            await expect(client.getAllProducts()).rejects.toThrow(
+                'Rate limit exceeded. Max retries reached'
+            );
+        }, 20000);
+    });
+
+    describe('getCycleInfoWithFallback', () => {
+        it('should find cycle with semantic version fallback', async () => {
+            const mockCycle = {
+                cycle: '3.11',
+                releaseDate: '2022-10-24',
+                eol: '2027-10-24',
+                latest: '3.11.7',
+            };
+
+            // First try 3.11.7 - returns 404
+            nock(baseUrl)
+                .get('/api/v1/products/python/releases/3.11.7')
+                .reply(404, 'Not Found')
+                // Then try 3.11 - returns success
+                .get('/api/v1/products/python/releases/3.11')
+                .reply(200, mockCycle);
+
+            const result = await client.getCycleInfoWithFallback('python', '3.11.7', true);
+
+            expect(result).toEqual(mockCycle);
+        });
+
+        it('should return null when no fallback matches', async () => {
+            // All fallback attempts fail
+            nock(baseUrl)
+                .get('/api/v1/products/python/releases/99.99.99')
+                .reply(404, 'Not Found')
+                .get('/api/v1/products/python/releases/99.99')
+                .reply(404, 'Not Found')
+                .get('/api/v1/products/python/releases/99')
+                .reply(404, 'Not Found');
+
+            const result = await client.getCycleInfoWithFallback('python', '99.99.99', true);
+
+            expect(result).toBeNull();
+        });
+
+        it('should not use fallback when disabled', async () => {
+            nock(baseUrl)
+                .get('/api/v1/products/python/releases/3.11.7')
+                .reply(404, 'Not Found');
+
+            const result = await client.getCycleInfoWithFallback('python', '3.11.7', false);
+
+            expect(result).toBeNull();
+        });
+
+        it('should return cycle on first match', async () => {
+            const mockCycle = {
+                cycle: '3.11.7',
+                releaseDate: '2022-10-24',
+                eol: '2027-10-24',
+                latest: '3.11.7',
+            };
+
+            nock(baseUrl)
+                .get('/api/v1/products/python/releases/3.11.7')
+                .reply(200, mockCycle);
+
+            const result = await client.getCycleInfoWithFallback('python', '3.11.7', true);
+
+            expect(result).toEqual(mockCycle);
+        });
+    });
 });

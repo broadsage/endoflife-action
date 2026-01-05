@@ -160,6 +160,16 @@ inputs:
     required: false
     default: 'newest-first'
   
+  filter-by-category:
+    description: 'Filter products by category (e.g., "os", "lang", "db"). Use API endpoint /categories to see available categories.'
+    required: false
+    default: ''
+  
+  filter-by-tag:
+    description: 'Filter products by tag (e.g., "linux", "microsoft"). Use API endpoint /tags to see available tags.'
+    required: false
+    default: ''
+  
   # Notification Settings
   enable-notifications:
     description: 'Enable notifications (auto-enabled if any webhook URL is provided)'
