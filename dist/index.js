@@ -55807,6 +55807,19 @@ class EndOfLifeClient {
         const url = `${this.baseUrl}/identifiers`;
         return await this.request(url, types_1.StringListSchema);
     }
+    /**
+     * Get all identifiers for a specific type
+     * API v1: GET /identifiers/{identifier_type}
+     * @param identifierType - Type of identifier (e.g., 'purl', 'cpe')
+     * @returns List of identifiers with their associated products
+     * @example
+     * const purls = await client.getIdentifiersByType('purl');
+     * // Returns: [{ identifier: 'pkg:npm/express@4.17.1', product: 'nodejs' }, ...]
+     */
+    async getIdentifiersByType(identifierType) {
+        const url = `${this.baseUrl}/identifiers/${identifierType}`;
+        return await this.request(url, types_1.IdentifierListSchema);
+    }
 }
 exports.EndOfLifeClient = EndOfLifeClient;
 
@@ -56752,6 +56765,28 @@ class BaseNotificationChannel {
         }
         return text.substring(0, maxLength - 3) + '...';
     }
+    /**
+     * Convert color to platform-specific format
+     * @param hex - Hex color code (e.g., '#FF0000')
+     * @param format - Target format ('hex', 'teams', 'discord', 'decimal')
+     * @returns Converted color value
+     * @example
+     * convertColorFormat('#FF0000', 'teams') // Returns 'FF0000'
+     * convertColorFormat('#FF0000', 'discord') // Returns 16711680
+     */
+    convertColorFormat(hex, format) {
+        const cleanHex = hex.replace('#', '');
+        switch (format) {
+            case 'teams':
+                return cleanHex;
+            case 'discord':
+            case 'decimal':
+                return parseInt(cleanHex, 16);
+            case 'hex':
+            default:
+                return hex;
+        }
+    }
 }
 exports.BaseNotificationChannel = BaseNotificationChannel;
 
@@ -56782,7 +56817,7 @@ class DiscordChannel extends base_channel_1.BaseNotificationChannel {
         const embed = {
             title: message.title,
             description: this.truncate(message.summary, 4096),
-            color: this.hexToDecimal(message.color || '#808080'),
+            color: this.convertColorFormat(message.color || '#808080', 'discord'),
             fields: message.fields
                 .slice(0, 25) // Discord limit
                 .map((field) => ({
@@ -56811,12 +56846,6 @@ class DiscordChannel extends base_channel_1.BaseNotificationChannel {
                 : undefined,
             embeds: [embed],
         };
-    }
-    /**
-     * Convert hex color to decimal for Discord
-     */
-    hexToDecimal(hex) {
-        return parseInt(hex.replace('#', ''), 16);
     }
 }
 exports.DiscordChannel = DiscordChannel;
@@ -57089,7 +57118,7 @@ class TeamsChannel extends base_channel_1.BaseNotificationChannel {
             '@type': 'MessageCard',
             '@context': 'https://schema.org/extensions',
             summary: message.title,
-            themeColor: this.getTeamsColor(message.color || '#808080'),
+            themeColor: this.convertColorFormat(message.color || '#808080', 'teams'),
             title: message.title,
             sections,
         };
@@ -57104,13 +57133,6 @@ class TeamsChannel extends base_channel_1.BaseNotificationChannel {
             ];
         }
         return card;
-    }
-    /**
-     * Convert hex color to Teams-compatible format
-     */
-    getTeamsColor(hex) {
-        // Teams expects hex without the # prefix
-        return hex.replace('#', '');
     }
 }
 exports.TeamsChannel = TeamsChannel;
@@ -57855,7 +57877,7 @@ function createIssueBody(results) {
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2025 Broadsage
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ValidationError = exports.EndOfLifeApiError = exports.EolStatus = exports.ActionInputsSchema = exports.ProductCyclesSchema = exports.StringListSchema = exports.FullProductSchema = exports.ProductSummarySchema = exports.AllProductsSchema = exports.CycleSchema = void 0;
+exports.ValidationError = exports.EndOfLifeApiError = exports.EolStatus = exports.ActionInputsSchema = exports.ProductCyclesSchema = exports.IdentifierListSchema = exports.IdentifierItemSchema = exports.StringListSchema = exports.FullProductSchema = exports.ProductSummarySchema = exports.AllProductsSchema = exports.CycleSchema = void 0;
 const zod_1 = __nccwpck_require__(50924);
 /**
  * Schema for a single release cycle from the EndOfLife.date API
@@ -57897,6 +57919,17 @@ exports.FullProductSchema = zod_1.z.object({
  * Schema for categories and tags (simple string arrays)
  */
 exports.StringListSchema = zod_1.z.array(zod_1.z.string());
+/**
+ * Schema for identifier item (from /identifiers/{type} endpoint)
+ */
+exports.IdentifierItemSchema = zod_1.z.object({
+    identifier: zod_1.z.string(),
+    product: zod_1.z.string(),
+});
+/**
+ * Schema for identifier list response
+ */
+exports.IdentifierListSchema = zod_1.z.array(exports.IdentifierItemSchema);
 /**
  * Schema for product cycles mapping
  */

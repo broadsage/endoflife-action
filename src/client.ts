@@ -14,6 +14,8 @@ import {
   FullProductSchema,
   StringList,
   StringListSchema,
+  IdentifierList,
+  IdentifierListSchema,
   EndOfLifeApiError,
   ValidationError,
 } from './types';
@@ -302,5 +304,19 @@ export class EndOfLifeClient {
   async getIdentifierTypes(): Promise<StringList> {
     const url = `${this.baseUrl}/identifiers`;
     return await this.request(url, StringListSchema);
+  }
+
+  /**
+   * Get all identifiers for a specific type
+   * API v1: GET /identifiers/{identifier_type}
+   * @param identifierType - Type of identifier (e.g., 'purl', 'cpe')
+   * @returns List of identifiers with their associated products
+   * @example
+   * const purls = await client.getIdentifiersByType('purl');
+   * // Returns: [{ identifier: 'pkg:npm/express@4.17.1', product: 'nodejs' }, ...]
+   */
+  async getIdentifiersByType(identifierType: string): Promise<IdentifierList> {
+    const url = `${this.baseUrl}/identifiers/${identifierType}`;
+    return await this.request(url, IdentifierListSchema);
   }
 }

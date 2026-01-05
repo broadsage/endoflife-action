@@ -345,4 +345,77 @@ describe('EndOfLifeClient', () => {
             expect(result).toEqual(mockCycle);
         });
     });
+
+    describe('getIdentifiersByType', () => {
+        it('should fetch identifiers by type successfully', async () => {
+            const mockIdentifiers = [
+                {
+                    identifier: 'pkg:npm/express@4.17.1',
+                    product: 'nodejs',
+                },
+                {
+                    identifier: 'pkg:npm/react@18.2.0',
+                    product: 'nodejs',
+                },
+            ];
+
+            nock(baseUrl)
+                .get('/api/v1/identifiers/purl')
+                .reply(200, mockIdentifiers);
+
+            const identifiers = await client.getIdentifiersByType('purl');
+
+            expect(identifiers).toEqual(mockIdentifiers);
+            expect(identifiers).toHaveLength(2);
+            expect(identifiers[0].identifier).toBe('pkg:npm/express@4.17.1');
+            expect(identifiers[0].product).toBe('nodejs');
+        });
+
+        it('should handle 404 for unknown identifier types', async () => {
+            nock(baseUrl)
+                .get('/api/v1/identifiers/unknown-type')
+                .reply(404, 'Not Found');
+
+            await expect(
+                client.getIdentifiersByType('unknown-type')
+            ).rejects.toThrow(EndOfLifeApiError);
+        });
+
+        it('should use cache for repeated identifier requests', async () => {
+            const mockIdentifiers = [
+                {
+                    identifier: 'cpe:2.3:a:python:python:3.11.0',
+                    product: 'python',
+                },
+            ];
+
+            nock(baseUrl)
+                .get('/api/v1/identifiers/cpe')
+                .once()
+                .reply(200, mockIdentifiers);
+
+            // First request
+            const identifiers1 = await client.getIdentifiersByType('cpe');
+            expect(identifiers1).toEqual(mockIdentifiers);
+
+            // Second request should use cache
+            const identifiers2 = await client.getIdentifiersByType('cpe');
+            expect(identifiers2).toEqual(mockIdentifiers);
+        });
+
+        it('should validate identifier response schema', async () => {
+            const invalidResponse = [
+                {
+                    // Missing required 'product' field
+                    identifier: 'pkg:npm/express@4.17.1',
+                },
+            ];
+
+            nock(baseUrl)
+                .get('/api/v1/identifiers/purl')
+                .reply(200, invalidResponse);
+
+            await expect(client.getIdentifiersByType('purl')).rejects.toThrow();
+        });
+    });
 });

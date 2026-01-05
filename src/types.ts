@@ -59,6 +59,23 @@ export const StringListSchema = z.array(z.string());
 export type StringList = z.infer<typeof StringListSchema>;
 
 /**
+ * Schema for identifier item (from /identifiers/{type} endpoint)
+ */
+export const IdentifierItemSchema = z.object({
+  identifier: z.string(),
+  product: z.string(),
+});
+
+export type IdentifierItem = z.infer<typeof IdentifierItemSchema>;
+
+/**
+ * Schema for identifier list response
+ */
+export const IdentifierListSchema = z.array(IdentifierItemSchema);
+
+export type IdentifierList = z.infer<typeof IdentifierListSchema>;
+
+/**
  * Schema for product cycles mapping
  */
 export const ProductCyclesSchema = z.record(z.string(), z.array(z.string()));

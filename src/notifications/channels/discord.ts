@@ -53,7 +53,10 @@ export class DiscordChannel extends BaseNotificationChannel {
     const embed: DiscordEmbed = {
       title: message.title,
       description: this.truncate(message.summary, 4096),
-      color: this.hexToDecimal(message.color || '#808080'),
+      color: this.convertColorFormat(
+        message.color || '#808080',
+        'discord'
+      ) as number,
       fields: message.fields
         .slice(0, 25) // Discord limit
         .map((field) => ({
@@ -85,12 +88,5 @@ export class DiscordChannel extends BaseNotificationChannel {
         : undefined,
       embeds: [embed],
     };
-  }
-
-  /**
-   * Convert hex color to decimal for Discord
-   */
-  private hexToDecimal(hex: string): number {
-    return parseInt(hex.replace('#', ''), 16);
   }
 }

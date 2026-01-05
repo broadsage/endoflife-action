@@ -75,7 +75,10 @@ export class TeamsChannel extends BaseNotificationChannel {
       '@type': 'MessageCard',
       '@context': 'https://schema.org/extensions',
       summary: message.title,
-      themeColor: this.getTeamsColor(message.color || '#808080'),
+      themeColor: this.convertColorFormat(
+        message.color || '#808080',
+        'teams'
+      ) as string,
       title: message.title,
       sections,
     };
@@ -92,13 +95,5 @@ export class TeamsChannel extends BaseNotificationChannel {
     }
 
     return card;
-  }
-
-  /**
-   * Convert hex color to Teams-compatible format
-   */
-  private getTeamsColor(hex: string): string {
-    // Teams expects hex without the # prefix
-    return hex.replace('#', '');
   }
 }

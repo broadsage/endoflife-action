@@ -278,4 +278,31 @@ export abstract class BaseNotificationChannel implements INotificationChannel {
     }
     return text.substring(0, maxLength - 3) + '...';
   }
+
+  /**
+   * Convert color to platform-specific format
+   * @param hex - Hex color code (e.g., '#FF0000')
+   * @param format - Target format ('hex', 'teams', 'discord', 'decimal')
+   * @returns Converted color value
+   * @example
+   * convertColorFormat('#FF0000', 'teams') // Returns 'FF0000'
+   * convertColorFormat('#FF0000', 'discord') // Returns 16711680
+   */
+  protected convertColorFormat(
+    hex: string,
+    format: 'hex' | 'teams' | 'discord' | 'decimal'
+  ): string | number {
+    const cleanHex = hex.replace('#', '');
+
+    switch (format) {
+      case 'teams':
+        return cleanHex;
+      case 'discord':
+      case 'decimal':
+        return parseInt(cleanHex, 16);
+      case 'hex':
+      default:
+        return hex;
+    }
+  }
 }
