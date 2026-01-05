@@ -120,6 +120,22 @@ inputs:
     required: false
     default: ''
   
+  # SBOM Integration
+  sbom-file:
+    description: 'Path to SBOM file (Software Bill of Materials) in CycloneDX or SPDX format'
+    required: false
+    default: ''
+  
+  sbom-format:
+    description: 'SBOM format: cyclonedx, spdx, or auto (auto-detect)'
+    required: false
+    default: 'auto'
+  
+  sbom-component-mapping:
+    description: 'Custom JSON mapping of SBOM component names to endoflife.date product names (e.g., {"my-python": "python"})'
+    required: false
+    default: ''
+  
   semantic-version-fallback:
     description: 'Enable semantic version fallback matching (1.2.3 → 1.2 → 1)'
     required: false

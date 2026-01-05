@@ -130,6 +130,10 @@ export const ActionInputsSchema = z.object({
   fileFormat: z.enum(['yaml', 'json', 'text']),
   versionRegex: z.string(),
   version: z.string(),
+  // SBOM inputs
+  sbomFile: z.string(),
+  sbomFormat: z.enum(['cyclonedx', 'spdx', 'auto']),
+  sbomComponentMapping: z.string(),
   semanticVersionFallback: z.boolean(),
   // Matrix output inputs
   outputMatrix: z.boolean(),

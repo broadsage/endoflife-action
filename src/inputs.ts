@@ -66,6 +66,12 @@ export function getInputs(): ActionInputs {
   const filterByCategory = core.getInput('filter-by-category') || '';
   const filterByTag = core.getInput('filter-by-tag') || '';
 
+  // SBOM inputs
+  const sbomFile = core.getInput('sbom-file') || '';
+  const sbomFormat = (core.getInput('sbom-format') ||
+    'auto') as ActionInputs['sbomFormat'];
+  const sbomComponentMapping = core.getInput('sbom-component-mapping') || '';
+
   return {
     products,
     cycles,
@@ -90,6 +96,9 @@ export function getInputs(): ActionInputs {
     fileFormat,
     versionRegex,
     version,
+    sbomFile,
+    sbomFormat,
+    sbomComponentMapping,
     semanticVersionFallback,
     outputMatrix,
     excludeEolFromMatrix,

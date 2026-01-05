@@ -56323,6 +56323,11 @@ function getInputs() {
         'newest-first');
     const filterByCategory = core.getInput('filter-by-category') || '';
     const filterByTag = core.getInput('filter-by-tag') || '';
+    // SBOM inputs
+    const sbomFile = core.getInput('sbom-file') || '';
+    const sbomFormat = (core.getInput('sbom-format') ||
+        'auto');
+    const sbomComponentMapping = core.getInput('sbom-component-mapping') || '';
     return {
         products,
         cycles,
@@ -56347,6 +56352,9 @@ function getInputs() {
         fileFormat,
         versionRegex,
         version,
+        sbomFile,
+        sbomFormat,
+        sbomComponentMapping,
         semanticVersionFallback,
         outputMatrix,
         excludeEolFromMatrix,
@@ -56613,7 +56621,8 @@ class BaseNotificationChannel {
         };
     }
     /**
-     * Validate channel configuration
+     * Validate channel configuration with security checks
+     * Prevents SSRF attacks by blocking internal/private IP addresses
      */
     validate() {
         if (!this.webhookUrl) {
@@ -56621,13 +56630,55 @@ class BaseNotificationChannel {
             return false;
         }
         try {
-            new URL(this.webhookUrl);
+            const url = new URL(this.webhookUrl);
+            // Block internal/private IP addresses to prevent SSRF
+            const blockedHosts = [
+                'localhost',
+                '127.0.0.1',
+                '0.0.0.0',
+                '::1',
+                '169.254.169.254', // AWS metadata service
+                '169.254.169.253', // AWS metadata service (secondary)
+                'metadata.google.internal', // GCP metadata service
+            ];
+            const hostname = url.hostname.toLowerCase();
+            // Check exact matches
+            if (blockedHosts.includes(hostname)) {
+                core.warning(`[${this.name}] Blocked internal/private URL: ${hostname}`);
+                return false;
+            }
+            // Check for private IP ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+            if (this.isPrivateIP(hostname)) {
+                core.warning(`[${this.name}] Blocked private IP address: ${hostname}`);
+                return false;
+            }
+            // Require HTTPS in production (allow HTTP for testing)
+            const isProduction = process.env.NODE_ENV === 'production';
+            const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+            if ((isProduction || isGitHubActions) && url.protocol !== 'https:') {
+                core.warning(`[${this.name}] HTTPS required for webhook URLs in production`);
+                return false;
+            }
             return true;
         }
         catch {
             core.warning(`[${this.name}] Invalid webhook URL: ${this.webhookUrl}`);
             return false;
         }
+    }
+    /**
+     * Check if hostname is a private IP address
+     */
+    isPrivateIP(hostname) {
+        // IPv4 private ranges
+        const privateIPv4Patterns = [
+            /^10\./, // 10.0.0.0/8
+            /^172\.(1[6-9]|2[0-9]|3[01])\./, // 172.16.0.0/12
+            /^192\.168\./, // 192.168.0.0/16
+            /^127\./, // 127.0.0.0/8 (loopback)
+            /^169\.254\./, // 169.254.0.0/16 (link-local)
+        ];
+        return privateIPv4Patterns.some((pattern) => pattern.test(hostname));
     }
     /**
      * Send HTTP request to webhook
@@ -57962,6 +58013,10 @@ exports.ActionInputsSchema = zod_1.z.object({
     fileFormat: zod_1.z.enum(['yaml', 'json', 'text']),
     versionRegex: zod_1.z.string(),
     version: zod_1.z.string(),
+    // SBOM inputs
+    sbomFile: zod_1.z.string(),
+    sbomFormat: zod_1.z.enum(['cyclonedx', 'spdx', 'auto']),
+    sbomComponentMapping: zod_1.z.string(),
     semanticVersionFallback: zod_1.z.boolean(),
     // Matrix output inputs
     outputMatrix: zod_1.z.boolean(),
