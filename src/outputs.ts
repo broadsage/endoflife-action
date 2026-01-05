@@ -55,6 +55,32 @@ export function formatAsMarkdown(results: ActionResults): string {
     lines.push('');
   }
 
+  if (results.staleProducts.length > 0) {
+    lines.push('## ⏰ Stale Versions');
+    lines.push('');
+    lines.push('| Product | Cycle | Last Release Date | Days Since Latest |');
+    lines.push('|---------|-------|-------------------|-------------------|');
+    for (const product of results.staleProducts) {
+      lines.push(
+        `| ${product.product} | ${product.cycle} | ${product.latestReleaseDate || 'N/A'} | ${product.daysSinceLatestRelease || 'N/A'} |`
+      );
+    }
+    lines.push('');
+  }
+
+  if (results.discontinuedProducts.length > 0) {
+    lines.push('## 🚫 Discontinued Products');
+    lines.push('');
+    lines.push('| Product | Cycle | Discontinued Date |');
+    lines.push('|---------|-------|-------------------|');
+    for (const product of results.discontinuedProducts) {
+      lines.push(
+        `| ${product.product} | ${product.cycle} | ${product.discontinuedDate || 'N/A'} |`
+      );
+    }
+    lines.push('');
+  }
+
   const activeProducts = results.products.filter(
     (p) => p.status === EolStatus.ACTIVE
   );
@@ -192,6 +218,17 @@ export function setOutputs(results: ActionResults): void {
   core.setOutput('summary', results.summary);
   core.setOutput('total-products-checked', results.totalProductsChecked);
   core.setOutput('total-cycles-checked', results.totalCyclesChecked);
+  core.setOutput('stale-detected', results.staleDetected);
+  core.setOutput('stale-products', JSON.stringify(results.staleProducts));
+  core.setOutput('discontinued-detected', results.discontinuedDetected);
+  core.setOutput(
+    'discontinued-products',
+    JSON.stringify(results.discontinuedProducts)
+  );
+  core.setOutput(
+    'extended-support-products',
+    JSON.stringify(results.extendedSupportProducts)
+  );
 
   // Matrix outputs (if generated)
   if (results.matrix) {
@@ -244,6 +281,37 @@ export function createIssueBody(results: ActionResults): string {
       if (product.link) {
         lines.push(`- **More Info:** ${product.link}`);
       }
+      lines.push('');
+    }
+  }
+
+  if (results.staleProducts.length > 0) {
+    lines.push('## ⏰ Stale Versions');
+    lines.push('');
+    for (const product of results.staleProducts) {
+      lines.push(`### ${product.product} ${product.cycle}`);
+      lines.push('');
+      lines.push(
+        `- **Days Since Latest Release:** ${product.daysSinceLatestRelease}`
+      );
+      lines.push(
+        `- **Last Release Date:** ${product.latestReleaseDate || 'N/A'}`
+      );
+      lines.push(`- **Latest Version:** ${product.latestVersion || 'N/A'}`);
+      lines.push('');
+    }
+  }
+
+  if (results.discontinuedProducts.length > 0) {
+    lines.push('## 🚫 Discontinued Products');
+    lines.push('');
+    for (const product of results.discontinuedProducts) {
+      lines.push(`### ${product.product} ${product.cycle}`);
+      lines.push('');
+      if (product.discontinuedDate) {
+        lines.push(`- **Discontinued Date:** ${product.discontinuedDate}`);
+      }
+      lines.push(`- **Latest Version:** ${product.latestVersion || 'N/A'}`);
       lines.push('');
     }
   }

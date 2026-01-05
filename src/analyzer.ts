@@ -21,32 +21,16 @@ export class EolAnalyzer {
   constructor(
     private client: EndOfLifeClient,
     private eolThresholdDays: number
-  ) { }
+  ) {}
 
   /**
-   * Parse EOL date from various formats
+   * Parse date from various formats (string, boolean, undefined)
    */
-  private parseEolDate(eol: string | boolean | undefined): Date | null {
-    if (!eol) return null;
-    if (typeof eol === 'boolean') return null; // true = still supported, false = no EOL date
+  private parseDate(value: string | boolean | undefined): Date | null {
+    if (!value || typeof value === 'boolean') return null;
 
     try {
-      const date = parseISO(eol);
-      return isValid(date) ? date : null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Parse support date from various formats
-   */
-  private parseSupportDate(support: string | boolean | undefined): Date | null {
-    if (!support) return null;
-    if (typeof support === 'boolean') return null; // true = still supported, false = no support date
-
-    try {
-      const date = parseISO(support);
+      const date = parseISO(value);
       return isValid(date) ? date : null;
     } catch {
       return null;
@@ -57,7 +41,7 @@ export class EolAnalyzer {
    * Determine EOL status for a cycle
    */
   private determineEolStatus(cycle: Cycle): EolStatus {
-    const eolDate = this.parseEolDate(cycle.eol);
+    const eolDate = this.parseDate(cycle.eol);
 
     if (!eolDate) {
       // Check if eol is explicitly true (still supported)
@@ -81,7 +65,7 @@ export class EolAnalyzer {
    * Calculate days until EOL
    */
   private calculateDaysUntilEol(cycle: Cycle): number | null {
-    const eolDate = this.parseEolDate(cycle.eol);
+    const eolDate = this.parseDate(cycle.eol);
     if (!eolDate) return null;
 
     return differenceInDays(eolDate, new Date());
@@ -97,51 +81,17 @@ export class EolAnalyzer {
   }
 
   /**
-   * Parse discontinued date from various formats
-   */
-  private parseDiscontinuedDate(
-    discontinued: string | boolean | undefined
-  ): Date | null {
-    if (!discontinued) return null;
-    if (typeof discontinued === 'boolean') return null;
-
-    try {
-      const date = parseISO(discontinued);
-      return isValid(date) ? date : null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
    * Check if product is discontinued
    */
   private isDiscontinued(cycle: Cycle): boolean {
     if (cycle.discontinued === true) return true;
     if (typeof cycle.discontinued === 'string') {
-      const date = this.parseDiscontinuedDate(cycle.discontinued);
+      const date = this.parseDate(cycle.discontinued);
       if (date) {
         return date <= new Date();
       }
     }
     return false;
-  }
-
-  /**
-   * Parse extended support date from various formats
-   */
-  private parseExtendedSupportDate(
-    extendedSupport: string | boolean | undefined
-  ): Date | null {
-    if (!extendedSupport) return null;
-    if (typeof extendedSupport === 'boolean') return null;
-
-    try {
-      const date = parseISO(extendedSupport);
-      return isValid(date) ? date : null;
-    } catch {
-      return null;
-    }
   }
 
   /**
@@ -173,13 +123,11 @@ export class EolAnalyzer {
    */
   analyzeProductCycle(product: string, cycle: Cycle): ProductVersionInfo {
     const status = this.determineEolStatus(cycle);
-    const eolDate = this.parseEolDate(cycle.eol);
-    const supportDate = this.parseSupportDate(cycle.support);
+    const eolDate = this.parseDate(cycle.eol);
+    const supportDate = this.parseDate(cycle.support);
     const releaseDate = cycle.releaseDate ? parseISO(cycle.releaseDate) : null;
-    const discontinuedDate = this.parseDiscontinuedDate(cycle.discontinued);
-    const extendedSupportDate = this.parseExtendedSupportDate(
-      cycle.extendedSupport
-    );
+    const discontinuedDate = this.parseDate(cycle.discontinued);
+    const extendedSupportDate = this.parseDate(cycle.extendedSupport);
 
     return {
       product,

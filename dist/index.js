@@ -55166,31 +55166,13 @@ class EolAnalyzer {
         this.eolThresholdDays = eolThresholdDays;
     }
     /**
-     * Parse EOL date from various formats
+     * Parse date from various formats (string, boolean, undefined)
      */
-    parseEolDate(eol) {
-        if (!eol)
+    parseDate(value) {
+        if (!value || typeof value === 'boolean')
             return null;
-        if (typeof eol === 'boolean')
-            return null; // true = still supported, false = no EOL date
         try {
-            const date = (0, date_fns_1.parseISO)(eol);
-            return (0, date_fns_1.isValid)(date) ? date : null;
-        }
-        catch {
-            return null;
-        }
-    }
-    /**
-     * Parse support date from various formats
-     */
-    parseSupportDate(support) {
-        if (!support)
-            return null;
-        if (typeof support === 'boolean')
-            return null; // true = still supported, false = no support date
-        try {
-            const date = (0, date_fns_1.parseISO)(support);
+            const date = (0, date_fns_1.parseISO)(value);
             return (0, date_fns_1.isValid)(date) ? date : null;
         }
         catch {
@@ -55201,7 +55183,7 @@ class EolAnalyzer {
      * Determine EOL status for a cycle
      */
     determineEolStatus(cycle) {
-        const eolDate = this.parseEolDate(cycle.eol);
+        const eolDate = this.parseDate(cycle.eol);
         if (!eolDate) {
             // Check if eol is explicitly true (still supported)
             if (cycle.eol === true)
@@ -55224,7 +55206,7 @@ class EolAnalyzer {
      * Calculate days until EOL
      */
     calculateDaysUntilEol(cycle) {
-        const eolDate = this.parseEolDate(cycle.eol);
+        const eolDate = this.parseDate(cycle.eol);
         if (!eolDate)
             return null;
         return (0, date_fns_1.differenceInDays)(eolDate, new Date());
@@ -55240,50 +55222,18 @@ class EolAnalyzer {
         return false;
     }
     /**
-     * Parse discontinued date from various formats
-     */
-    parseDiscontinuedDate(discontinued) {
-        if (!discontinued)
-            return null;
-        if (typeof discontinued === 'boolean')
-            return null;
-        try {
-            const date = (0, date_fns_1.parseISO)(discontinued);
-            return (0, date_fns_1.isValid)(date) ? date : null;
-        }
-        catch {
-            return null;
-        }
-    }
-    /**
      * Check if product is discontinued
      */
     isDiscontinued(cycle) {
         if (cycle.discontinued === true)
             return true;
         if (typeof cycle.discontinued === 'string') {
-            const date = this.parseDiscontinuedDate(cycle.discontinued);
+            const date = this.parseDate(cycle.discontinued);
             if (date) {
                 return date <= new Date();
             }
         }
         return false;
-    }
-    /**
-     * Parse extended support date from various formats
-     */
-    parseExtendedSupportDate(extendedSupport) {
-        if (!extendedSupport)
-            return null;
-        if (typeof extendedSupport === 'boolean')
-            return null;
-        try {
-            const date = (0, date_fns_1.parseISO)(extendedSupport);
-            return (0, date_fns_1.isValid)(date) ? date : null;
-        }
-        catch {
-            return null;
-        }
     }
     /**
      * Check if cycle has extended support
@@ -55316,11 +55266,11 @@ class EolAnalyzer {
      */
     analyzeProductCycle(product, cycle) {
         const status = this.determineEolStatus(cycle);
-        const eolDate = this.parseEolDate(cycle.eol);
-        const supportDate = this.parseSupportDate(cycle.support);
+        const eolDate = this.parseDate(cycle.eol);
+        const supportDate = this.parseDate(cycle.support);
         const releaseDate = cycle.releaseDate ? (0, date_fns_1.parseISO)(cycle.releaseDate) : null;
-        const discontinuedDate = this.parseDiscontinuedDate(cycle.discontinued);
-        const extendedSupportDate = this.parseExtendedSupportDate(cycle.extendedSupport);
+        const discontinuedDate = this.parseDate(cycle.discontinued);
+        const extendedSupportDate = this.parseDate(cycle.extendedSupport);
         return {
             product,
             cycle: String(cycle.cycle),
@@ -56039,6 +55989,7 @@ const client_1 = __nccwpck_require__(9592);
 const analyzer_1 = __nccwpck_require__(98561);
 const github_1 = __nccwpck_require__(69248);
 const version_extractor_1 = __nccwpck_require__(95254);
+const sbom_parser_1 = __nccwpck_require__(84172);
 const error_utils_1 = __nccwpck_require__(82483);
 const inputs_1 = __nccwpck_require__(38422);
 const outputs_1 = __nccwpck_require__(7729);
@@ -56130,6 +56081,34 @@ async function run() {
                 throw new Error(`Failed to extract version: ${(0, error_utils_1.getErrorMessage)(error)}`);
             }
         }
+        else if (inputs.sbomFile) {
+            // Handle SBOM parsing
+            core.info(`Parsing SBOM file: ${inputs.sbomFile}`);
+            try {
+                let customMapping = {};
+                if (inputs.sbomComponentMapping) {
+                    try {
+                        customMapping = JSON.parse(inputs.sbomComponentMapping);
+                    }
+                    catch (error) {
+                        core.warning(`Failed to parse sbom-component-mapping as JSON: ${(0, error_utils_1.getErrorMessage)(error)}`);
+                    }
+                }
+                const sbomVersions = sbom_parser_1.SBOMParser.parseFile(inputs.sbomFile, inputs.sbomFormat, customMapping);
+                core.info(`✓ Extracted ${sbomVersions.size} components from SBOM`);
+                // Merge with existing products or replace if "all"
+                if (products.length === 1 && products[0].toLowerCase() === 'all') {
+                    products = Array.from(sbomVersions.keys());
+                }
+                // Add SBOM versions to the map
+                for (const [product, ver] of sbomVersions) {
+                    versionMap.set(product, ver);
+                }
+            }
+            catch (error) {
+                throw new Error(`Failed to parse SBOM: ${(0, error_utils_1.getErrorMessage)(error)}`);
+            }
+        }
         core.info(`Analyzing ${products.length} product(s)...`);
         // Parse date filters
         let minReleaseDate;
@@ -56150,7 +56129,7 @@ async function run() {
         // Initialize analyzer
         const analyzer = new analyzer_1.EolAnalyzer(client, inputs.eolThresholdDays);
         // Analyze products with filtering
-        const results = await analyzer.analyzeProducts(products, cyclesMap, versionMap, inputs.semanticVersionFallback, minReleaseDate, maxReleaseDate, inputs.maxVersions, inputs.versionSortOrder);
+        const results = await analyzer.analyzeProducts(products, cyclesMap, versionMap, inputs.semanticVersionFallback, minReleaseDate, maxReleaseDate, inputs.maxVersions, inputs.versionSortOrder, inputs.apiConcurrency);
         // Generate matrix outputs if requested
         if (inputs.outputMatrix) {
             core.info('Generating matrix outputs...');
@@ -56202,7 +56181,10 @@ async function run() {
                 core.info('Sending notifications to configured channels...');
                 const notificationManager = new notifications_1.NotificationManager(notificationConfig);
                 // Add all configured channels
-                const channels = notifications_1.NotificationChannelFactory.createFromInputs();
+                const channels = notifications_1.NotificationChannelFactory.createFromInputs({
+                    retryAttempts: notificationConfig.retryAttempts,
+                    retryDelayMs: notificationConfig.retryDelayMs,
+                });
                 channels.forEach((channel) => notificationManager.addChannel(channel));
                 if (notificationManager.getChannelCount() > 0) {
                     const notificationResults = await notificationManager.sendAll(results);
@@ -56377,6 +56359,7 @@ function getInputs() {
         outputMatrix,
         excludeEolFromMatrix,
         excludeApproachingEolFromMatrix,
+        apiConcurrency: parseInt(core.getInput('api-concurrency') || '5', 10),
         minReleaseDate,
         maxReleaseDate,
         maxVersions,
@@ -57356,27 +57339,40 @@ class NotificationChannelFactory {
     /**
      * Create channels from action inputs
      */
-    static createFromInputs() {
+    static createFromInputs(options = {}) {
         const channels = [];
+        const { retryAttempts, retryDelayMs } = options;
         // Slack
         const slackWebhook = core.getInput('slack-webhook-url');
         if (slackWebhook) {
-            channels.push(this.create(types_1.NotificationChannelType.SLACK, slackWebhook));
+            channels.push(this.create(types_1.NotificationChannelType.SLACK, slackWebhook, {
+                retryAttempts,
+                retryDelayMs,
+            }));
         }
         // Discord
         const discordWebhook = core.getInput('discord-webhook-url');
         if (discordWebhook) {
-            channels.push(this.create(types_1.NotificationChannelType.DISCORD, discordWebhook));
+            channels.push(this.create(types_1.NotificationChannelType.DISCORD, discordWebhook, {
+                retryAttempts,
+                retryDelayMs,
+            }));
         }
         // Microsoft Teams
         const teamsWebhook = core.getInput('teams-webhook-url');
         if (teamsWebhook) {
-            channels.push(this.create(types_1.NotificationChannelType.TEAMS, teamsWebhook));
+            channels.push(this.create(types_1.NotificationChannelType.TEAMS, teamsWebhook, {
+                retryAttempts,
+                retryDelayMs,
+            }));
         }
         // Google Chat
         const googleChatWebhook = core.getInput('google-chat-webhook-url');
         if (googleChatWebhook) {
-            channels.push(this.create(types_1.NotificationChannelType.GOOGLE_CHAT, googleChatWebhook));
+            channels.push(this.create(types_1.NotificationChannelType.GOOGLE_CHAT, googleChatWebhook, {
+                retryAttempts,
+                retryDelayMs,
+            }));
         }
         // Generic Webhook
         const customWebhook = core.getInput('custom-webhook-url');
@@ -57394,6 +57390,8 @@ class NotificationChannelFactory {
             }
             channels.push(this.create(types_1.NotificationChannelType.WEBHOOK, customWebhook, {
                 customHeaders,
+                retryAttempts,
+                retryDelayMs,
             }));
         }
         return channels;
@@ -57782,6 +57780,26 @@ function formatAsMarkdown(results) {
         }
         lines.push('');
     }
+    if (results.staleProducts.length > 0) {
+        lines.push('## ⏰ Stale Versions');
+        lines.push('');
+        lines.push('| Product | Cycle | Last Release Date | Days Since Latest |');
+        lines.push('|---------|-------|-------------------|-------------------|');
+        for (const product of results.staleProducts) {
+            lines.push(`| ${product.product} | ${product.cycle} | ${product.latestReleaseDate || 'N/A'} | ${product.daysSinceLatestRelease || 'N/A'} |`);
+        }
+        lines.push('');
+    }
+    if (results.discontinuedProducts.length > 0) {
+        lines.push('## 🚫 Discontinued Products');
+        lines.push('');
+        lines.push('| Product | Cycle | Discontinued Date |');
+        lines.push('|---------|-------|-------------------|');
+        for (const product of results.discontinuedProducts) {
+            lines.push(`| ${product.product} | ${product.cycle} | ${product.discontinuedDate || 'N/A'} |`);
+        }
+        lines.push('');
+    }
     const activeProducts = results.products.filter((p) => p.status === types_1.EolStatus.ACTIVE);
     if (activeProducts.length > 0) {
         lines.push('## ✅ Active Support');
@@ -57874,6 +57892,11 @@ function setOutputs(results) {
     core.setOutput('summary', results.summary);
     core.setOutput('total-products-checked', results.totalProductsChecked);
     core.setOutput('total-cycles-checked', results.totalCyclesChecked);
+    core.setOutput('stale-detected', results.staleDetected);
+    core.setOutput('stale-products', JSON.stringify(results.staleProducts));
+    core.setOutput('discontinued-detected', results.discontinuedDetected);
+    core.setOutput('discontinued-products', JSON.stringify(results.discontinuedProducts));
+    core.setOutput('extended-support-products', JSON.stringify(results.extendedSupportProducts));
     // Matrix outputs (if generated)
     if (results.matrix) {
         core.setOutput('matrix', JSON.stringify(results.matrix));
@@ -57922,6 +57945,31 @@ function createIssueBody(results) {
             lines.push('');
         }
     }
+    if (results.staleProducts.length > 0) {
+        lines.push('## ⏰ Stale Versions');
+        lines.push('');
+        for (const product of results.staleProducts) {
+            lines.push(`### ${product.product} ${product.cycle}`);
+            lines.push('');
+            lines.push(`- **Days Since Latest Release:** ${product.daysSinceLatestRelease}`);
+            lines.push(`- **Last Release Date:** ${product.latestReleaseDate || 'N/A'}`);
+            lines.push(`- **Latest Version:** ${product.latestVersion || 'N/A'}`);
+            lines.push('');
+        }
+    }
+    if (results.discontinuedProducts.length > 0) {
+        lines.push('## 🚫 Discontinued Products');
+        lines.push('');
+        for (const product of results.discontinuedProducts) {
+            lines.push(`### ${product.product} ${product.cycle}`);
+            lines.push('');
+            if (product.discontinuedDate) {
+                lines.push(`- **Discontinued Date:** ${product.discontinuedDate}`);
+            }
+            lines.push(`- **Latest Version:** ${product.latestVersion || 'N/A'}`);
+            lines.push('');
+        }
+    }
     lines.push('## 📋 Recommended Actions');
     lines.push('');
     lines.push('1. Review the affected software versions');
@@ -57934,6 +57982,342 @@ function createIssueBody(results) {
     lines.push('*This issue was created automatically by [EndOfLife Action](https://github.com/broadsage/endoflife-action)*');
     return lines.join('\n');
 }
+
+
+/***/ }),
+
+/***/ 84172:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 Broadsage
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SBOMParser = exports.SBOMFormat = void 0;
+/**
+ * SBOM (Software Bill of Materials) parser
+ * Supports CycloneDX and SPDX formats
+ */
+const fs = __importStar(__nccwpck_require__(79896));
+const core = __importStar(__nccwpck_require__(37484));
+const error_utils_1 = __nccwpck_require__(82483);
+/**
+ * SBOM format types
+ */
+var SBOMFormat;
+(function (SBOMFormat) {
+    SBOMFormat["CYCLONEDX"] = "cyclonedx";
+    SBOMFormat["SPDX"] = "spdx";
+    SBOMFormat["AUTO"] = "auto";
+})(SBOMFormat || (exports.SBOMFormat = SBOMFormat = {}));
+/**
+ * SBOM Parser class
+ */
+class SBOMParser {
+    /**
+     * Parse SBOM file and extract components
+     * @param filePath - Path to SBOM file
+     * @param format - SBOM format (auto-detect if not specified)
+     * @returns Map of product name to version
+     */
+    static parseFile(filePath, format = SBOMFormat.AUTO, customMapping = {}) {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const data = JSON.parse(content);
+            // Auto-detect format if needed
+            if (format === SBOMFormat.AUTO) {
+                format = this.detectFormat(data);
+            }
+            core.info(`Parsing SBOM file: ${filePath} (format: ${format})`);
+            switch (format) {
+                case SBOMFormat.CYCLONEDX:
+                    return this.parseCycloneDX(data, customMapping);
+                case SBOMFormat.SPDX:
+                    return this.parseSPDX(data, customMapping);
+                default:
+                    throw new Error(`Unsupported SBOM format: ${format}`);
+            }
+        }
+        catch (error) {
+            throw new Error(`Failed to parse SBOM file: ${(0, error_utils_1.getErrorMessage)(error)}`);
+        }
+    }
+    /**
+     * Parse SBOM and extract components with full metadata
+     * @param filePath - Path to SBOM file
+     * @param format - SBOM format
+     * @returns Array of components with metadata
+     */
+    static parseComponents(filePath, format = SBOMFormat.AUTO) {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const data = JSON.parse(content);
+            if (format === SBOMFormat.AUTO) {
+                format = this.detectFormat(data);
+            }
+            switch (format) {
+                case SBOMFormat.CYCLONEDX:
+                    return this.extractCycloneDXComponents(data);
+                case SBOMFormat.SPDX:
+                    return this.extractSPDXComponents(data);
+                default:
+                    throw new Error(`Unsupported SBOM format: ${format}`);
+            }
+        }
+        catch (error) {
+            throw new Error(`Failed to parse SBOM components: ${(0, error_utils_1.getErrorMessage)(error)}`);
+        }
+    }
+    /**
+     * Detect SBOM format from content
+     */
+    static detectFormat(data) {
+        const obj = data;
+        // Check for CycloneDX
+        if (obj.bomFormat === 'CycloneDX' || typeof obj.specVersion === 'string') {
+            return SBOMFormat.CYCLONEDX;
+        }
+        // Check for SPDX
+        if (typeof obj.spdxVersion === 'string' &&
+            obj.spdxVersion.startsWith('SPDX-')) {
+            return SBOMFormat.SPDX;
+        }
+        throw new Error('Unable to detect SBOM format. Please specify format explicitly.');
+    }
+    /**
+     * Parse CycloneDX BOM
+     */
+    static parseCycloneDX(bom, customMapping = {}) {
+        const components = new Map();
+        if (!bom.components || bom.components.length === 0) {
+            core.warning('No components found in CycloneDX BOM');
+            return components;
+        }
+        // Recursively extract components
+        const extractComponents = (comps) => {
+            for (const component of comps) {
+                if (component.name && component.version) {
+                    // Map component name to endoflife.date product name
+                    const productName = this.mapComponentToProduct(component.name, customMapping);
+                    if (productName) {
+                        components.set(productName, component.version);
+                        core.debug(`Extracted: ${productName} ${component.version} (from ${component.name})`);
+                    }
+                }
+                // Process nested components
+                if (component.components && component.components.length > 0) {
+                    extractComponents(component.components);
+                }
+            }
+        };
+        extractComponents(bom.components);
+        core.info(`Extracted ${components.size} components from CycloneDX BOM`);
+        return components;
+    }
+    /**
+     * Parse SPDX document
+     */
+    static parseSPDX(doc, customMapping = {}) {
+        const components = new Map();
+        if (!doc.packages || doc.packages.length === 0) {
+            core.warning('No packages found in SPDX document');
+            return components;
+        }
+        for (const pkg of doc.packages) {
+            if (pkg.name && pkg.versionInfo) {
+                const productName = this.mapComponentToProduct(pkg.name, customMapping);
+                if (productName) {
+                    components.set(productName, pkg.versionInfo);
+                    core.debug(`Extracted: ${productName} ${pkg.versionInfo} (from ${pkg.name})`);
+                }
+            }
+        }
+        core.info(`Extracted ${components.size} packages from SPDX document`);
+        return components;
+    }
+    /**
+     * Extract CycloneDX components with full metadata
+     */
+    static extractCycloneDXComponents(bom) {
+        const components = [];
+        if (!bom.components) {
+            return components;
+        }
+        const extractComponents = (comps) => {
+            for (const component of comps) {
+                if (component.name) {
+                    components.push({
+                        name: component.name,
+                        version: component.version || 'unknown',
+                        purl: component.purl,
+                        cpe: component.cpe,
+                        type: component.type,
+                    });
+                }
+                if (component.components) {
+                    extractComponents(component.components);
+                }
+            }
+        };
+        extractComponents(bom.components);
+        return components;
+    }
+    /**
+     * Extract SPDX components with full metadata
+     */
+    static extractSPDXComponents(doc) {
+        const components = [];
+        if (!doc.packages) {
+            return components;
+        }
+        for (const pkg of doc.packages) {
+            const component = {
+                name: pkg.name,
+                version: pkg.versionInfo || 'unknown',
+            };
+            // Extract PURL and CPE from external refs
+            if (pkg.externalRefs) {
+                for (const ref of pkg.externalRefs) {
+                    if (ref.referenceType === 'purl') {
+                        component.purl = ref.referenceLocator;
+                    }
+                    else if (ref.referenceType.startsWith('cpe')) {
+                        component.cpe = ref.referenceLocator;
+                    }
+                }
+            }
+            components.push(component);
+        }
+        return components;
+    }
+    /**
+     * Map component name to endoflife.date product name
+     * This is a best-effort mapping based on common naming patterns
+     */
+    static mapComponentToProduct(componentName, customMapping = {}) {
+        const name = componentName.toLowerCase();
+        // Check custom mapping first
+        if (customMapping[componentName]) {
+            return customMapping[componentName];
+        }
+        if (customMapping[name]) {
+            return customMapping[name];
+        }
+        // Common mappings
+        const mappings = {
+            // Languages
+            python: 'python',
+            python3: 'python',
+            node: 'nodejs',
+            nodejs: 'nodejs',
+            'node.js': 'nodejs',
+            java: 'java',
+            openjdk: 'java',
+            go: 'go',
+            golang: 'go',
+            ruby: 'ruby',
+            php: 'php',
+            dotnet: 'dotnet',
+            '.net': 'dotnet',
+            // Databases
+            postgresql: 'postgresql',
+            postgres: 'postgresql',
+            mysql: 'mysql',
+            mariadb: 'mariadb',
+            mongodb: 'mongodb',
+            redis: 'redis',
+            elasticsearch: 'elasticsearch',
+            // Operating Systems
+            ubuntu: 'ubuntu',
+            debian: 'debian',
+            alpine: 'alpine',
+            centos: 'centos',
+            rhel: 'rhel',
+            'red hat enterprise linux': 'rhel',
+            // Frameworks
+            django: 'django',
+            flask: 'flask',
+            express: 'nodejs', // Express versions follow Node.js
+            react: 'react',
+            vue: 'vue',
+            angular: 'angular',
+            // Tools
+            docker: 'docker-engine',
+            kubernetes: 'kubernetes',
+            kubectl: 'kubernetes',
+            nginx: 'nginx',
+            apache: 'apache',
+            'apache httpd': 'apache',
+        };
+        // Direct mapping
+        if (mappings[name]) {
+            return mappings[name];
+        }
+        // Check if component name contains a known product
+        for (const [key, value] of Object.entries(mappings)) {
+            if (name.includes(key)) {
+                return value;
+            }
+        }
+        // Return null if no mapping found
+        // This allows the caller to decide whether to skip or use the original name
+        return null;
+    }
+    /**
+     * Get statistics about SBOM
+     */
+    static getStatistics(filePath) {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const data = JSON.parse(content);
+        const format = this.detectFormat(data);
+        const components = this.parseComponents(filePath, format);
+        const versionMap = this.parseFile(filePath, format);
+        const unmappedComponents = components
+            .filter((c) => !versionMap.has(c.name))
+            .map((c) => c.name);
+        return {
+            format,
+            totalComponents: components.length,
+            mappedComponents: versionMap.size,
+            unmappedComponents,
+        };
+    }
+}
+exports.SBOMParser = SBOMParser;
 
 
 /***/ }),
@@ -58040,6 +58424,7 @@ exports.ActionInputsSchema = zod_1.z.object({
     outputMatrix: zod_1.z.boolean(),
     excludeEolFromMatrix: zod_1.z.boolean(),
     excludeApproachingEolFromMatrix: zod_1.z.boolean(),
+    apiConcurrency: zod_1.z.number().int().min(1).max(10),
     // Filtering inputs
     minReleaseDate: zod_1.z.string(),
     maxReleaseDate: zod_1.z.string(),

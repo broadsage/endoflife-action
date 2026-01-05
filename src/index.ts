@@ -6,6 +6,7 @@ import { EndOfLifeClient } from './client';
 import { EolAnalyzer } from './analyzer';
 import { GitHubIntegration } from './github';
 import { VersionExtractor, FileFormat } from './version-extractor';
+import { SBOMParser, SBOMFormat } from './sbom-parser';
 import { getErrorMessage } from './utils/error-utils';
 import {
   getInputs,
@@ -137,6 +138,41 @@ async function run(): Promise<void> {
       } catch (error) {
         throw new Error(`Failed to extract version: ${getErrorMessage(error)}`);
       }
+    } else if (inputs.sbomFile) {
+      // Handle SBOM parsing
+      core.info(`Parsing SBOM file: ${inputs.sbomFile}`);
+      try {
+        let customMapping: Record<string, string> = {};
+        if (inputs.sbomComponentMapping) {
+          try {
+            customMapping = JSON.parse(inputs.sbomComponentMapping);
+          } catch (error) {
+            core.warning(
+              `Failed to parse sbom-component-mapping as JSON: ${getErrorMessage(error)}`
+            );
+          }
+        }
+
+        const sbomVersions = SBOMParser.parseFile(
+          inputs.sbomFile,
+          inputs.sbomFormat as SBOMFormat,
+          customMapping
+        );
+
+        core.info(`✓ Extracted ${sbomVersions.size} components from SBOM`);
+
+        // Merge with existing products or replace if "all"
+        if (products.length === 1 && products[0].toLowerCase() === 'all') {
+          products = Array.from(sbomVersions.keys());
+        }
+
+        // Add SBOM versions to the map
+        for (const [product, ver] of sbomVersions) {
+          versionMap.set(product, ver);
+        }
+      } catch (error) {
+        throw new Error(`Failed to parse SBOM: ${getErrorMessage(error)}`);
+      }
     }
 
     core.info(`Analyzing ${products.length} product(s)...`);
@@ -179,7 +215,8 @@ async function run(): Promise<void> {
       minReleaseDate,
       maxReleaseDate,
       inputs.maxVersions,
-      inputs.versionSortOrder
+      inputs.versionSortOrder,
+      inputs.apiConcurrency
     );
 
     // Generate matrix outputs if requested
@@ -248,7 +285,10 @@ async function run(): Promise<void> {
         const notificationManager = new NotificationManager(notificationConfig);
 
         // Add all configured channels
-        const channels = NotificationChannelFactory.createFromInputs();
+        const channels = NotificationChannelFactory.createFromInputs({
+          retryAttempts: notificationConfig.retryAttempts,
+          retryDelayMs: notificationConfig.retryDelayMs,
+        });
         channels.forEach((channel) => notificationManager.addChannel(channel));
 
         if (notificationManager.getChannelCount() > 0) {

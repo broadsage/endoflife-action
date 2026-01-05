@@ -103,6 +103,7 @@ export function getInputs(): ActionInputs {
     outputMatrix,
     excludeEolFromMatrix,
     excludeApproachingEolFromMatrix,
+    apiConcurrency: parseInt(core.getInput('api-concurrency') || '5', 10),
     minReleaseDate,
     maxReleaseDate,
     maxVersions,

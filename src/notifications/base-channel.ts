@@ -155,11 +155,11 @@ export abstract class BaseNotificationChannel implements INotificationChannel {
   private isPrivateIP(hostname: string): boolean {
     // IPv4 private ranges
     const privateIPv4Patterns = [
-      /^10\./,                      // 10.0.0.0/8
+      /^10\./, // 10.0.0.0/8
       /^172\.(1[6-9]|2[0-9]|3[01])\./, // 172.16.0.0/12
-      /^192\.168\./,                // 192.168.0.0/16
-      /^127\./,                     // 127.0.0.0/8 (loopback)
-      /^169\.254\./,                // 169.254.0.0/16 (link-local)
+      /^192\.168\./, // 192.168.0.0/16
+      /^127\./, // 127.0.0.0/8 (loopback)
+      /^169\.254\./, // 169.254.0.0/16 (link-local)
     ];
 
     return privateIPv4Patterns.some((pattern) => pattern.test(hostname));

@@ -66,34 +66,56 @@ export class NotificationChannelFactory {
   /**
    * Create channels from action inputs
    */
-  static createFromInputs(): INotificationChannel[] {
+  static createFromInputs(
+    options: {
+      retryAttempts?: number;
+      retryDelayMs?: number;
+    } = {}
+  ): INotificationChannel[] {
     const channels: INotificationChannel[] = [];
+    const { retryAttempts, retryDelayMs } = options;
 
     // Slack
     const slackWebhook = core.getInput('slack-webhook-url');
     if (slackWebhook) {
-      channels.push(this.create(NotificationChannelType.SLACK, slackWebhook));
+      channels.push(
+        this.create(NotificationChannelType.SLACK, slackWebhook, {
+          retryAttempts,
+          retryDelayMs,
+        })
+      );
     }
 
     // Discord
     const discordWebhook = core.getInput('discord-webhook-url');
     if (discordWebhook) {
       channels.push(
-        this.create(NotificationChannelType.DISCORD, discordWebhook)
+        this.create(NotificationChannelType.DISCORD, discordWebhook, {
+          retryAttempts,
+          retryDelayMs,
+        })
       );
     }
 
     // Microsoft Teams
     const teamsWebhook = core.getInput('teams-webhook-url');
     if (teamsWebhook) {
-      channels.push(this.create(NotificationChannelType.TEAMS, teamsWebhook));
+      channels.push(
+        this.create(NotificationChannelType.TEAMS, teamsWebhook, {
+          retryAttempts,
+          retryDelayMs,
+        })
+      );
     }
 
     // Google Chat
     const googleChatWebhook = core.getInput('google-chat-webhook-url');
     if (googleChatWebhook) {
       channels.push(
-        this.create(NotificationChannelType.GOOGLE_CHAT, googleChatWebhook)
+        this.create(NotificationChannelType.GOOGLE_CHAT, googleChatWebhook, {
+          retryAttempts,
+          retryDelayMs,
+        })
       );
     }
 
@@ -121,6 +143,8 @@ export class NotificationChannelFactory {
       channels.push(
         this.create(NotificationChannelType.WEBHOOK, customWebhook, {
           customHeaders,
+          retryAttempts,
+          retryDelayMs,
         })
       );
     }

@@ -139,6 +139,7 @@ export const ActionInputsSchema = z.object({
   outputMatrix: z.boolean(),
   excludeEolFromMatrix: z.boolean(),
   excludeApproachingEolFromMatrix: z.boolean(),
+  apiConcurrency: z.number().int().min(1).max(10),
   // Filtering inputs
   minReleaseDate: z.string(),
   maxReleaseDate: z.string(),
