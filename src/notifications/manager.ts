@@ -78,7 +78,9 @@ export class NotificationManager {
           } catch (error) {
             result.error =
               error instanceof Error ? error : new Error(String(error));
-            core.error(`✗ ${channel.name} notification failed: ${result.error.message}`);
+            core.error(
+              `✗ ${channel.name} notification failed: ${result.error.message}`
+            );
           }
 
           return result;
