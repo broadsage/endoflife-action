@@ -9,6 +9,7 @@
 import * as fs from 'fs';
 import * as core from '@actions/core';
 import { getErrorMessage } from './utils/error-utils';
+import { EndOfLifeClient } from './client';
 
 /**
  * Component extracted from SBOM
@@ -77,17 +78,19 @@ interface SPDXDocument {
  * SBOM Parser class
  */
 export class SBOMParser {
+  constructor(private client?: EndOfLifeClient) {}
+
   /**
    * Parse SBOM file and extract components
    * @param filePath - Path to SBOM file
    * @param format - SBOM format (auto-detect if not specified)
    * @returns Map of product name to version
    */
-  static parseFile(
+  async parseFile(
     filePath: string,
     format: SBOMFormat = SBOMFormat.AUTO,
     customMapping: Record<string, string> = {}
-  ): Map<string, string> {
+  ): Promise<Map<string, string>> {
     try {
       const content = fs.readFileSync(filePath, 'utf8');
       const data = JSON.parse(content);
@@ -101,9 +104,9 @@ export class SBOMParser {
 
       switch (format) {
         case SBOMFormat.CYCLONEDX:
-          return this.parseCycloneDX(data as CycloneDXBOM, customMapping);
+          return await this.parseCycloneDX(data as CycloneDXBOM, customMapping);
         case SBOMFormat.SPDX:
-          return this.parseSPDX(data as SPDXDocument, customMapping);
+          return await this.parseSPDX(data as SPDXDocument, customMapping);
         default:
           throw new Error(`Unsupported SBOM format: ${format}`);
       }
@@ -118,7 +121,7 @@ export class SBOMParser {
    * @param format - SBOM format
    * @returns Array of components with metadata
    */
-  static parseComponents(
+  parseComponents(
     filePath: string,
     format: SBOMFormat = SBOMFormat.AUTO
   ): SBOMComponent[] {
@@ -148,7 +151,7 @@ export class SBOMParser {
   /**
    * Detect SBOM format from content
    */
-  private static detectFormat(data: unknown): SBOMFormat {
+  private detectFormat(data: unknown): SBOMFormat {
     const obj = data as Record<string, unknown>;
 
     // Check for CycloneDX
@@ -172,10 +175,10 @@ export class SBOMParser {
   /**
    * Parse CycloneDX BOM
    */
-  private static parseCycloneDX(
+  private async parseCycloneDX(
     bom: CycloneDXBOM,
     customMapping: Record<string, string> = {}
-  ): Map<string, string> {
+  ): Promise<Map<string, string>> {
     const components = new Map<string, string>();
 
     if (!bom.components || bom.components.length === 0) {
@@ -184,14 +187,34 @@ export class SBOMParser {
     }
 
     // Recursively extract components
-    const extractComponents = (comps: CycloneDXComponent[]) => {
+    const extractComponents = async (comps: CycloneDXComponent[]) => {
       for (const component of comps) {
         if (component.name && component.version) {
-          // Map component name to endoflife.date product name
-          const productName = this.mapComponentToProduct(
-            component.name,
-            customMapping
-          );
+          // 1. Try custom mapping
+          let productName =
+            customMapping[component.name] ||
+            customMapping[component.name.toLowerCase()] ||
+            null;
+
+          // 2. Try API identifier resolution if available
+          if (!productName && this.client) {
+            if (component.purl) {
+              productName = await this.client.resolveProductFromIdentifier(
+                component.purl
+              );
+            }
+            if (!productName && component.cpe) {
+              productName = await this.client.resolveProductFromIdentifier(
+                component.cpe
+              );
+            }
+          }
+
+          // 3. Fallback to hardcoded mapping
+          if (!productName) {
+            productName = this.mapComponentToProduct(component.name, {});
+          }
+
           if (productName) {
             components.set(productName, component.version);
             core.debug(
@@ -202,12 +225,12 @@ export class SBOMParser {
 
         // Process nested components
         if (component.components && component.components.length > 0) {
-          extractComponents(component.components);
+          await extractComponents(component.components);
         }
       }
     };
 
-    extractComponents(bom.components);
+    await extractComponents(bom.components);
 
     core.info(`Extracted ${components.size} components from CycloneDX BOM`);
     return components;
@@ -216,10 +239,10 @@ export class SBOMParser {
   /**
    * Parse SPDX document
    */
-  private static parseSPDX(
+  private async parseSPDX(
     doc: SPDXDocument,
     customMapping: Record<string, string> = {}
-  ): Map<string, string> {
+  ): Promise<Map<string, string>> {
     const components = new Map<string, string>();
 
     if (!doc.packages || doc.packages.length === 0) {
@@ -229,7 +252,32 @@ export class SBOMParser {
 
     for (const pkg of doc.packages) {
       if (pkg.name && pkg.versionInfo) {
-        const productName = this.mapComponentToProduct(pkg.name, customMapping);
+        // 1. Try custom mapping
+        let productName =
+          customMapping[pkg.name] ||
+          customMapping[pkg.name.toLowerCase()] ||
+          null;
+
+        // 2. Try API identifier resolution if available
+        if (!productName && this.client && pkg.externalRefs) {
+          for (const ref of pkg.externalRefs) {
+            if (
+              ref.referenceType === 'purl' ||
+              ref.referenceType.startsWith('cpe')
+            ) {
+              productName = await this.client.resolveProductFromIdentifier(
+                ref.referenceLocator
+              );
+              if (productName) break;
+            }
+          }
+        }
+
+        // 3. Fallback to hardcoded mapping
+        if (!productName) {
+          productName = this.mapComponentToProduct(pkg.name, {});
+        }
+
         if (productName) {
           components.set(productName, pkg.versionInfo);
           core.debug(
@@ -246,9 +294,7 @@ export class SBOMParser {
   /**
    * Extract CycloneDX components with full metadata
    */
-  private static extractCycloneDXComponents(
-    bom: CycloneDXBOM
-  ): SBOMComponent[] {
+  private extractCycloneDXComponents(bom: CycloneDXBOM): SBOMComponent[] {
     const components: SBOMComponent[] = [];
 
     if (!bom.components) {
@@ -280,7 +326,7 @@ export class SBOMParser {
   /**
    * Extract SPDX components with full metadata
    */
-  private static extractSPDXComponents(doc: SPDXDocument): SBOMComponent[] {
+  private extractSPDXComponents(doc: SPDXDocument): SBOMComponent[] {
     const components: SBOMComponent[] = [];
 
     if (!doc.packages) {
@@ -314,7 +360,7 @@ export class SBOMParser {
    * Map component name to endoflife.date product name
    * This is a best-effort mapping based on common naming patterns
    */
-  private static mapComponentToProduct(
+  private mapComponentToProduct(
     componentName: string,
     customMapping: Record<string, string> = {}
   ): string | null {
@@ -399,18 +445,18 @@ export class SBOMParser {
   /**
    * Get statistics about SBOM
    */
-  static getStatistics(filePath: string): {
+  async getStatistics(filePath: string): Promise<{
     format: string;
     totalComponents: number;
     mappedComponents: number;
     unmappedComponents: string[];
-  } {
+  }> {
     const content = fs.readFileSync(filePath, 'utf8');
     const data = JSON.parse(content);
     const format = this.detectFormat(data);
 
     const components = this.parseComponents(filePath, format);
-    const versionMap = this.parseFile(filePath, format);
+    const versionMap = await this.parseFile(filePath, format);
 
     const unmappedComponents = components
       .filter((c) => !versionMap.has(c.name))

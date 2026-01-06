@@ -247,14 +247,19 @@ describe('Input Parsing and Validation', () => {
             maxReleaseDate: '',
             maxVersions: null,
             versionSortOrder: 'newest-first',
-            failOnNotificationFailure: false,
             notificationRetryAttempts: 3,
-            notificationRetryDelay: 1000,
+            notificationRetryDelayMs: 1000,
+            notificationThresholdDays: 90,
+            notifyOnEolOnly: false,
+            notifyOnApproachingEol: true,
+            enableNotifications: false,
             webhookMinSeverity: NotificationSeverity.INFO,
             teamsMinSeverity: NotificationSeverity.INFO,
             googleChatMinSeverity: NotificationSeverity.INFO,
             discordMinSeverity: NotificationSeverity.INFO,
             slackMinSeverity: NotificationSeverity.INFO,
+            filterByCategory: undefined,
+            filterByTag: undefined,
         };
 
         it('should validate correct inputs', () => {

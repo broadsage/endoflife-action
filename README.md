@@ -101,6 +101,7 @@ jobs:
 | `staleness-threshold-days`  | Days since last release to consider stale                | `365`        |
 | `include-discontinued`      | Include discontinued products/devices                    | `true`       |
 | `semantic-version-fallback` | Enable semantic version fallback (1.2.3 → 1.2 → 1)       | `true`       |
+| `cycles`                    | Alias for `releases` (Deprecated)                        | `{}`         |
 
 </details>
 
@@ -137,7 +138,7 @@ jobs:
 <details>
 <summary><b>Filtering & Sorting</b></summary>
 
-| Input                | Description                                  | DefaultSource |
+| Input                | Description                                  | Default      |
 | -------------------- | -------------------------------------------- | -------------- |
 | `min-release-date`   | Minimum release date (YYYY-MM-DD or YYYY)    | `''`           |
 | `max-release-date`   | Maximum release date (YYYY-MM-DD or YYYY)    | `''`           |
@@ -156,6 +157,17 @@ jobs:
 | `github-token`        | GitHub token for creating issues      | `''`                        |
 | `create-issue-on-eol` | Create GitHub issue when EOL detected | `false`                     |
 | `issue-labels`        | Comma-separated labels for issues     | `dependencies,eol,security` |
+
+</details>
+
+<details>
+<summary><b>SBOM Integration</b></summary>
+
+| Input                    | Description                                         | Default |
+| ------------------------ | --------------------------------------------------- | ------- |
+| `sbom-file`              | Path to SBOM file (CycloneDX or SPDX)               | `''`    |
+| `sbom-format`            | SBOM format: `cyclonedx`, `spdx`, or `auto`         | `auto`  |
+| `sbom-component-mapping` | Custom JSON mapping for component names             | `''`    |
 
 </details>
 

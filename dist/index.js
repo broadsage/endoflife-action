@@ -55674,6 +55674,36 @@ class EndOfLifeClient {
         return await this.request(url, types_1.IdentifierListSchema);
     }
     /**
+     * Resolve a product name from an identifier (type:value)
+     * @param identifier - Full identifier string (e.g. "purl:pkg:npm/lodash" or "cpe:2.3:a:python:python")
+     */
+    async resolveProductFromIdentifier(identifier) {
+        const parts = identifier.split(':');
+        if (parts.length < 2)
+            return null;
+        let type = parts[0].toLowerCase();
+        let value = parts.slice(1).join(':');
+        // Handle CPE formats specifically
+        if (type === 'cpe') {
+            if (value.startsWith('2.3:')) {
+                type = 'cpe23';
+            }
+            else {
+                type = 'cpe22';
+            }
+        }
+        try {
+            const identifiers = await this.getIdentifiersByType(type);
+            const match = identifiers.find((i) => i.identifier.toLowerCase() === value.toLowerCase() ||
+                i.identifier.toLowerCase() === identifier.toLowerCase());
+            return match ? match.product : null;
+        }
+        catch (error) {
+            core.debug(`Failed to resolve identifier ${identifier}: ${(0, error_utils_1.getErrorMessage)(error)}`);
+            return null;
+        }
+    }
+    /**
      * Clear the cache
      */
     clearCache() {
@@ -55916,6 +55946,36 @@ async function run() {
             products = await client.getAllProducts();
             core.info(`Found ${products.length} products`);
         }
+        // Filter products by category or tag if requested
+        if (inputs.filterByCategory) {
+            core.info(`Filtering products by category: ${inputs.filterByCategory}`);
+            const categoryProducts = await client.getProductsByCategory(inputs.filterByCategory);
+            const categoryProductNames = categoryProducts.map((p) => p.name);
+            if (products.length === 1 && products[0].toLowerCase() === 'all') {
+                products = categoryProductNames;
+            }
+            else {
+                // Intersect if products were explicitly listed, or union?
+                // Usually if you specify products AND category, you want the intersection.
+                // But if products is empty/all, you want all in category.
+                // Let's go with: if products is not 'all', we intersect.
+                products = products.filter((p) => categoryProductNames.includes(p));
+            }
+            core.info(`Products after category filtering: ${products.length}`);
+        }
+        if (inputs.filterByTag) {
+            core.info(`Filtering products by tag: ${inputs.filterByTag}`);
+            const tagProducts = await client.getProductsByTag(inputs.filterByTag);
+            const tagProductNames = tagProducts.map((p) => p.name);
+            if (products.length === 0 ||
+                (products.length === 1 && products[0].toLowerCase() === 'all')) {
+                products = tagProductNames;
+            }
+            else {
+                products = products.filter((p) => tagProductNames.includes(p));
+            }
+            core.info(`Products after tag filtering: ${products.length}`);
+        }
         // Handle version extraction
         const versionMap = new Map();
         if (inputs.version) {
@@ -55961,7 +56021,8 @@ async function run() {
                         core.warning(`Failed to parse sbom-component-mapping as JSON: ${(0, error_utils_1.getErrorMessage)(error)}`);
                     }
                 }
-                const sbomVersions = sbom_parser_1.SBOMParser.parseFile(inputs.sbomFile, inputs.sbomFormat, customMapping);
+                const sbomParser = new sbom_parser_1.SBOMParser(client);
+                const sbomVersions = await sbomParser.parseFile(inputs.sbomFile, inputs.sbomFormat, customMapping);
                 core.info(`✓ Extracted ${sbomVersions.size} components from SBOM`);
                 // If products was "all", we use SBOM products
                 // (This logic was already present but we ensure it's robust)
@@ -56206,38 +56267,36 @@ function getInputs() {
     const maxVersions = maxVersionsInput ? parseInt(maxVersionsInput, 10) : null;
     const versionSortOrder = (core.getInput('version-sort-order') ||
         'newest-first');
+    const filterByCategory = core.getInput('filter-by-category') || undefined;
+    const filterByTag = core.getInput('filter-by-tag') || undefined;
+    const enableNotifications = core.getBooleanInput('enable-notifications');
+    const notifyOnEolOnly = core.getBooleanInput('notify-on-eol-only');
+    const notifyOnApproachingEol = core.getBooleanInput('notify-on-approaching-eol');
+    const notificationThresholdDays = parseInt(core.getInput('notification-threshold-days') || '90', 10);
     // Notification inputs
-    const failOnNotificationFailure = core.getBooleanInput('fail-on-notification-failure');
     const notificationRetryAttempts = parseInt(core.getInput('notification-retry-attempts') || '3', 10);
-    const notificationRetryDelay = parseInt(core.getInput('notification-retry-delay') || '1000', 10);
+    const notificationRetryDelay = parseInt(core.getInput('notification-retry-delay-ms') || '1000', 10);
     // Webhook inputs
-    const webhookUrl = core.getInput('webhook-url') || undefined;
+    const webhookUrl = core.getInput('custom-webhook-url') || undefined;
     const webhookMinSeverity = (core.getInput('webhook-min-severity') ||
         'info');
-    const webhookCustomHeaders = core.getInput('webhook-custom-headers') || undefined;
-    const webhookPayloadTemplate = core.getInput('webhook-payload-template') || undefined;
+    const webhookCustomHeaders = core.getInput('custom-webhook-headers') || undefined;
     // Teams inputs
-    const teamsUrl = core.getInput('teams-url') || undefined;
+    const teamsUrl = core.getInput('teams-webhook-url') || undefined;
     const teamsMinSeverity = (core.getInput('teams-min-severity') ||
         'info');
     // Google Chat inputs
-    const googleChatUrl = core.getInput('google-chat-url') || undefined;
+    const googleChatUrl = core.getInput('google-chat-webhook-url') || undefined;
     const googleChatMinSeverity = (core.getInput('google-chat-min-severity') ||
         'info');
     // Discord inputs
-    const discordUrl = core.getInput('discord-url') || undefined;
+    const discordUrl = core.getInput('discord-webhook-url') || undefined;
     const discordMinSeverity = (core.getInput('discord-min-severity') ||
         'info');
-    const discordUsername = core.getInput('discord-username') || undefined;
-    const discordAvatarUrl = core.getInput('discord-avatar-url') || undefined;
     // Slack inputs
-    const slackUrl = core.getInput('slack-url') || undefined;
+    const slackUrl = core.getInput('slack-webhook-url') || undefined;
     const slackMinSeverity = (core.getInput('slack-min-severity') ||
         'info');
-    const slackChannel = core.getInput('slack-channel') || undefined;
-    const slackUsername = core.getInput('slack-username') || undefined;
-    const slackIconEmoji = core.getInput('slack-icon-emoji') || undefined;
-    const slackIconUrl = core.getInput('slack-icon-url') || undefined;
     // SBOM inputs
     const sbomFile = core.getInput('sbom-file') || undefined;
     const sbomFormat = (core.getInput('sbom-format') ||
@@ -56267,6 +56326,12 @@ function getInputs() {
         fileFormat,
         versionRegex,
         version,
+        filterByCategory,
+        filterByTag,
+        enableNotifications,
+        notifyOnEolOnly,
+        notifyOnApproachingEol,
+        notificationThresholdDays,
         sbomFile,
         sbomFormat,
         sbomComponentMapping,
@@ -56279,27 +56344,19 @@ function getInputs() {
         maxReleaseDate,
         maxVersions,
         versionSortOrder,
-        failOnNotificationFailure,
         notificationRetryAttempts,
-        notificationRetryDelay,
+        notificationRetryDelayMs: notificationRetryDelay,
         webhookUrl,
         webhookMinSeverity,
         webhookCustomHeaders,
-        webhookPayloadTemplate,
         teamsUrl,
         teamsMinSeverity,
         googleChatUrl,
         googleChatMinSeverity,
         discordUrl,
         discordMinSeverity,
-        discordUsername,
-        discordAvatarUrl,
         slackUrl,
         slackMinSeverity,
-        slackChannel,
-        slackUsername,
-        slackIconEmoji,
-        slackIconUrl,
     };
 }
 /**
@@ -56496,6 +56553,7 @@ exports.BaseNotificationChannel = void 0;
 const core = __importStar(__nccwpck_require__(37484));
 const http_client_1 = __nccwpck_require__(54844);
 const types_1 = __nccwpck_require__(41905);
+const security_utils_1 = __nccwpck_require__(56579);
 /**
  * Base class for notification channels with common functionality
  */
@@ -56563,56 +56621,11 @@ class BaseNotificationChannel {
             core.warning(`[${this.name}] Webhook URL is not configured`);
             return false;
         }
-        try {
-            const url = new URL(this.webhookUrl);
-            // Block internal/private IP addresses to prevent SSRF
-            const blockedHosts = [
-                'localhost',
-                '127.0.0.1',
-                '0.0.0.0',
-                '::1',
-                '169.254.169.254', // AWS metadata service
-                '169.254.169.253', // AWS metadata service (secondary)
-                'metadata.google.internal', // GCP metadata service
-            ];
-            const hostname = url.hostname.toLowerCase();
-            // Check exact matches
-            if (blockedHosts.includes(hostname)) {
-                core.warning(`[${this.name}] Blocked internal/private URL: ${hostname}`);
-                return false;
-            }
-            // Check for private IP ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
-            if (this.isPrivateIP(hostname)) {
-                core.warning(`[${this.name}] Blocked private IP address: ${hostname}`);
-                return false;
-            }
-            // Require HTTPS in production (allow HTTP for testing)
-            const isProduction = process.env.NODE_ENV === 'production';
-            const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
-            if ((isProduction || isGitHubActions) && url.protocol !== 'https:') {
-                core.warning(`[${this.name}] HTTPS required for webhook URLs in production`);
-                return false;
-            }
-            return true;
-        }
-        catch {
-            core.warning(`[${this.name}] Invalid webhook URL: ${this.webhookUrl}`);
+        if (!security_utils_1.SecurityUtils.isSafeUrl(this.webhookUrl)) {
+            core.warning(`[${this.name}] Blocked unsafe or private URL: ${this.webhookUrl}`);
             return false;
         }
-    }
-    /**
-     * Check if hostname is a private IP address
-     */
-    isPrivateIP(hostname) {
-        // IPv4 private ranges
-        const privateIPv4Patterns = [
-            /^10\./, // 10.0.0.0/8
-            /^172\.(1[6-9]|2[0-9]|3[01])\./, // 172.16.0.0/12
-            /^192\.168\./, // 192.168.0.0/16
-            /^127\./, // 127.0.0.0/8 (loopback)
-            /^169\.254\./, // 169.254.0.0/16 (link-local)
-        ];
-        return privateIPv4Patterns.some((pattern) => pattern.test(hostname));
+        return true;
     }
     /**
      * Send HTTP request to webhook
@@ -57164,7 +57177,7 @@ class WebhookChannel extends base_channel_1.BaseNotificationChannel {
             runUrl: message.runUrl,
             metadata: {
                 action: 'broadsage-eol-action',
-                version: '3.0.0',
+                version: '4.0.0',
             },
         };
     }
@@ -57981,13 +57994,17 @@ var SBOMFormat;
  * SBOM Parser class
  */
 class SBOMParser {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
     /**
      * Parse SBOM file and extract components
      * @param filePath - Path to SBOM file
      * @param format - SBOM format (auto-detect if not specified)
      * @returns Map of product name to version
      */
-    static parseFile(filePath, format = SBOMFormat.AUTO, customMapping = {}) {
+    async parseFile(filePath, format = SBOMFormat.AUTO, customMapping = {}) {
         try {
             const content = fs.readFileSync(filePath, 'utf8');
             const data = JSON.parse(content);
@@ -57998,9 +58015,9 @@ class SBOMParser {
             core.info(`Parsing SBOM file: ${filePath} (format: ${format})`);
             switch (format) {
                 case SBOMFormat.CYCLONEDX:
-                    return this.parseCycloneDX(data, customMapping);
+                    return await this.parseCycloneDX(data, customMapping);
                 case SBOMFormat.SPDX:
-                    return this.parseSPDX(data, customMapping);
+                    return await this.parseSPDX(data, customMapping);
                 default:
                     throw new Error(`Unsupported SBOM format: ${format}`);
             }
@@ -58015,7 +58032,7 @@ class SBOMParser {
      * @param format - SBOM format
      * @returns Array of components with metadata
      */
-    static parseComponents(filePath, format = SBOMFormat.AUTO) {
+    parseComponents(filePath, format = SBOMFormat.AUTO) {
         try {
             const content = fs.readFileSync(filePath, 'utf8');
             const data = JSON.parse(content);
@@ -58038,7 +58055,7 @@ class SBOMParser {
     /**
      * Detect SBOM format from content
      */
-    static detectFormat(data) {
+    detectFormat(data) {
         const obj = data;
         // Check for CycloneDX
         if (obj.bomFormat === 'CycloneDX' || typeof obj.specVersion === 'string') {
@@ -58054,18 +58071,33 @@ class SBOMParser {
     /**
      * Parse CycloneDX BOM
      */
-    static parseCycloneDX(bom, customMapping = {}) {
+    async parseCycloneDX(bom, customMapping = {}) {
         const components = new Map();
         if (!bom.components || bom.components.length === 0) {
             core.warning('No components found in CycloneDX BOM');
             return components;
         }
         // Recursively extract components
-        const extractComponents = (comps) => {
+        const extractComponents = async (comps) => {
             for (const component of comps) {
                 if (component.name && component.version) {
-                    // Map component name to endoflife.date product name
-                    const productName = this.mapComponentToProduct(component.name, customMapping);
+                    // 1. Try custom mapping
+                    let productName = customMapping[component.name] ||
+                        customMapping[component.name.toLowerCase()] ||
+                        null;
+                    // 2. Try API identifier resolution if available
+                    if (!productName && this.client) {
+                        if (component.purl) {
+                            productName = await this.client.resolveProductFromIdentifier(component.purl);
+                        }
+                        if (!productName && component.cpe) {
+                            productName = await this.client.resolveProductFromIdentifier(component.cpe);
+                        }
+                    }
+                    // 3. Fallback to hardcoded mapping
+                    if (!productName) {
+                        productName = this.mapComponentToProduct(component.name, {});
+                    }
                     if (productName) {
                         components.set(productName, component.version);
                         core.debug(`Extracted: ${productName} ${component.version} (from ${component.name})`);
@@ -58073,18 +58105,18 @@ class SBOMParser {
                 }
                 // Process nested components
                 if (component.components && component.components.length > 0) {
-                    extractComponents(component.components);
+                    await extractComponents(component.components);
                 }
             }
         };
-        extractComponents(bom.components);
+        await extractComponents(bom.components);
         core.info(`Extracted ${components.size} components from CycloneDX BOM`);
         return components;
     }
     /**
      * Parse SPDX document
      */
-    static parseSPDX(doc, customMapping = {}) {
+    async parseSPDX(doc, customMapping = {}) {
         const components = new Map();
         if (!doc.packages || doc.packages.length === 0) {
             core.warning('No packages found in SPDX document');
@@ -58092,7 +58124,25 @@ class SBOMParser {
         }
         for (const pkg of doc.packages) {
             if (pkg.name && pkg.versionInfo) {
-                const productName = this.mapComponentToProduct(pkg.name, customMapping);
+                // 1. Try custom mapping
+                let productName = customMapping[pkg.name] ||
+                    customMapping[pkg.name.toLowerCase()] ||
+                    null;
+                // 2. Try API identifier resolution if available
+                if (!productName && this.client && pkg.externalRefs) {
+                    for (const ref of pkg.externalRefs) {
+                        if (ref.referenceType === 'purl' ||
+                            ref.referenceType.startsWith('cpe')) {
+                            productName = await this.client.resolveProductFromIdentifier(ref.referenceLocator);
+                            if (productName)
+                                break;
+                        }
+                    }
+                }
+                // 3. Fallback to hardcoded mapping
+                if (!productName) {
+                    productName = this.mapComponentToProduct(pkg.name, {});
+                }
                 if (productName) {
                     components.set(productName, pkg.versionInfo);
                     core.debug(`Extracted: ${productName} ${pkg.versionInfo} (from ${pkg.name})`);
@@ -58105,7 +58155,7 @@ class SBOMParser {
     /**
      * Extract CycloneDX components with full metadata
      */
-    static extractCycloneDXComponents(bom) {
+    extractCycloneDXComponents(bom) {
         const components = [];
         if (!bom.components) {
             return components;
@@ -58132,7 +58182,7 @@ class SBOMParser {
     /**
      * Extract SPDX components with full metadata
      */
-    static extractSPDXComponents(doc) {
+    extractSPDXComponents(doc) {
         const components = [];
         if (!doc.packages) {
             return components;
@@ -58161,7 +58211,7 @@ class SBOMParser {
      * Map component name to endoflife.date product name
      * This is a best-effort mapping based on common naming patterns
      */
-    static mapComponentToProduct(componentName, customMapping = {}) {
+    mapComponentToProduct(componentName, customMapping = {}) {
         const name = componentName.toLowerCase();
         // Check custom mapping first
         if (customMapping[componentName]) {
@@ -58233,12 +58283,12 @@ class SBOMParser {
     /**
      * Get statistics about SBOM
      */
-    static getStatistics(filePath) {
+    async getStatistics(filePath) {
         const content = fs.readFileSync(filePath, 'utf8');
         const data = JSON.parse(content);
         const format = this.detectFormat(data);
         const components = this.parseComponents(filePath, format);
-        const versionMap = this.parseFile(filePath, format);
+        const versionMap = await this.parseFile(filePath, format);
         const unmappedComponents = components
             .filter((c) => !versionMap.has(c.name))
             .map((c) => c.name);
@@ -58407,6 +58457,8 @@ exports.ActionInputsSchema = zod_1.z.object({
     fileFormat: zod_1.z.enum(['yaml', 'json', 'text', 'auto']),
     versionRegex: zod_1.z.string(),
     version: zod_1.z.string(),
+    filterByCategory: zod_1.z.string().optional(),
+    filterByTag: zod_1.z.string().optional(),
     minReleaseDate: zod_1.z.string().optional(),
     maxReleaseDate: zod_1.z.string().optional(),
     maxVersions: zod_1.z.number().nullable(),
@@ -58416,27 +58468,23 @@ exports.ActionInputsSchema = zod_1.z.object({
     excludeEolFromMatrix: zod_1.z.boolean(),
     excludeApproachingEolFromMatrix: zod_1.z.boolean(),
     apiConcurrency: zod_1.z.number().int().positive(),
-    failOnNotificationFailure: zod_1.z.boolean(),
     notificationRetryAttempts: zod_1.z.number().int().nonnegative(),
-    notificationRetryDelay: zod_1.z.number().int().nonnegative(),
+    notificationRetryDelayMs: zod_1.z.number().int().nonnegative(),
+    notificationThresholdDays: zod_1.z.number().int().positive(),
+    notifyOnEolOnly: zod_1.z.boolean(),
+    notifyOnApproachingEol: zod_1.z.boolean(),
+    enableNotifications: zod_1.z.boolean(),
     webhookUrl: zod_1.z.string().optional(),
     webhookMinSeverity: zod_1.z.nativeEnum(NotificationSeverity),
     webhookCustomHeaders: zod_1.z.string().optional(),
-    webhookPayloadTemplate: zod_1.z.string().optional(),
     teamsUrl: zod_1.z.string().optional(),
     teamsMinSeverity: zod_1.z.nativeEnum(NotificationSeverity),
     googleChatUrl: zod_1.z.string().optional(),
     googleChatMinSeverity: zod_1.z.nativeEnum(NotificationSeverity),
     discordUrl: zod_1.z.string().optional(),
     discordMinSeverity: zod_1.z.nativeEnum(NotificationSeverity),
-    discordUsername: zod_1.z.string().optional(),
-    discordAvatarUrl: zod_1.z.string().optional(),
     slackUrl: zod_1.z.string().optional(),
     slackMinSeverity: zod_1.z.nativeEnum(NotificationSeverity),
-    slackChannel: zod_1.z.string().optional(),
-    slackUsername: zod_1.z.string().optional(),
-    slackIconEmoji: zod_1.z.string().optional(),
-    slackIconUrl: zod_1.z.string().optional(),
     // SBOM
     sbomFile: zod_1.z.string().optional(),
     sbomFormat: zod_1.z.enum(['cyclonedx', 'spdx', 'auto']).optional(),
@@ -58536,6 +58584,93 @@ function handleClientError(error, context = {}) {
     }
     throw error;
 }
+
+
+/***/ }),
+
+/***/ 56579:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 Broadsage
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SecurityUtils = void 0;
+const url_1 = __nccwpck_require__(87016);
+const net_1 = __nccwpck_require__(69278);
+/**
+ * Utility for SSRF prevention and URL validation
+ */
+class SecurityUtils {
+    /**
+     * Validate if a URL is safe for webhook notification
+     * @param urlString - The URL to validate
+     * @returns true if safe, false otherwise
+     */
+    static isSafeUrl(urlString) {
+        try {
+            const url = new url_1.URL(urlString);
+            // Enforce HTTPS
+            if (url.protocol !== 'https:') {
+                return false;
+            }
+            let host = url.hostname;
+            // Strip brackets for IPv6
+            if (host.startsWith('[') && host.endsWith(']')) {
+                host = host.substring(1, host.length - 1);
+            }
+            const ipType = (0, net_1.isIP)(host);
+            // Check if host is an IP address
+            if (ipType) {
+                return !this.isPrivateIP(host);
+            }
+            // Check if host is localhost
+            if (host.toLowerCase() === 'localhost') {
+                return false;
+            }
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    /**
+     * Check if an IP address is private/internal
+     */
+    static isPrivateIP(ip) {
+        // 127.0.0.1/8
+        if (ip.startsWith('127.'))
+            return true;
+        // 10.0.0.0/8
+        if (ip.startsWith('10.'))
+            return true;
+        // 172.16.0.0/12
+        if (ip.startsWith('172.')) {
+            const secondOctet = parseInt(ip.split('.')[1], 10);
+            if (secondOctet >= 16 && secondOctet <= 31)
+                return true;
+        }
+        // 192.168.0.0/16
+        if (ip.startsWith('192.168.'))
+            return true;
+        // 169.254.0.0/16 (Link-local)
+        if (ip.startsWith('169.254.'))
+            return true;
+        // IPv6 Loopback
+        if (ip === '::1')
+            return true;
+        // IPv6 Private (Unique Local Address) fc00::/7
+        if (ip.toLowerCase().startsWith('fc00:') ||
+            ip.toLowerCase().startsWith('fd00:'))
+            return true;
+        // IPv6 Link-local fe80::/10
+        if (ip.toLowerCase().startsWith('fe80:'))
+            return true;
+        return false;
+    }
+}
+exports.SecurityUtils = SecurityUtils;
 
 
 /***/ }),

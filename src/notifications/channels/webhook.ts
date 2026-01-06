@@ -62,7 +62,7 @@ export class WebhookChannel extends BaseNotificationChannel {
       runUrl: message.runUrl,
       metadata: {
         action: 'broadsage-eol-action',
-        version: '3.0.0',
+        version: '4.0.0',
       },
     };
   }

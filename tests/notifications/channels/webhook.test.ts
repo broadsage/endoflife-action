@@ -79,7 +79,7 @@ describe('WebhookChannel', () => {
             expect(payload.fields).toHaveLength(1);
             expect(payload.runUrl).toBe('https://github.com/test/repo/actions/runs/123');
             expect(payload.metadata.action).toBe('broadsage-eol-action');
-            expect(payload.metadata.version).toBe('3.0.0');
+            expect(payload.metadata.version).toBe('4.0.0');
         });
 
         it('should handle missing optional fields', () => {

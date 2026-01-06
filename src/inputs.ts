@@ -62,54 +62,53 @@ export function getInputs(): ActionInputs {
   const maxVersions = maxVersionsInput ? parseInt(maxVersionsInput, 10) : null;
   const versionSortOrder = (core.getInput('version-sort-order') ||
     'newest-first') as ActionInputs['versionSortOrder'];
+  const filterByCategory = core.getInput('filter-by-category') || undefined;
+  const filterByTag = core.getInput('filter-by-tag') || undefined;
+  const enableNotifications = core.getBooleanInput('enable-notifications');
+  const notifyOnEolOnly = core.getBooleanInput('notify-on-eol-only');
+  const notifyOnApproachingEol = core.getBooleanInput(
+    'notify-on-approaching-eol'
+  );
+  const notificationThresholdDays = parseInt(
+    core.getInput('notification-threshold-days') || '90',
+    10
+  );
 
   // Notification inputs
-  const failOnNotificationFailure = core.getBooleanInput(
-    'fail-on-notification-failure'
-  );
   const notificationRetryAttempts = parseInt(
     core.getInput('notification-retry-attempts') || '3',
     10
   );
   const notificationRetryDelay = parseInt(
-    core.getInput('notification-retry-delay') || '1000',
+    core.getInput('notification-retry-delay-ms') || '1000',
     10
   );
 
   // Webhook inputs
-  const webhookUrl = core.getInput('webhook-url') || undefined;
+  const webhookUrl = core.getInput('custom-webhook-url') || undefined;
   const webhookMinSeverity = (core.getInput('webhook-min-severity') ||
     'info') as NotificationSeverity;
   const webhookCustomHeaders =
-    core.getInput('webhook-custom-headers') || undefined;
-  const webhookPayloadTemplate =
-    core.getInput('webhook-payload-template') || undefined;
+    core.getInput('custom-webhook-headers') || undefined;
 
   // Teams inputs
-  const teamsUrl = core.getInput('teams-url') || undefined;
+  const teamsUrl = core.getInput('teams-webhook-url') || undefined;
   const teamsMinSeverity = (core.getInput('teams-min-severity') ||
     'info') as NotificationSeverity;
 
   // Google Chat inputs
-  const googleChatUrl = core.getInput('google-chat-url') || undefined;
+  const googleChatUrl = core.getInput('google-chat-webhook-url') || undefined;
   const googleChatMinSeverity = (core.getInput('google-chat-min-severity') ||
     'info') as NotificationSeverity;
 
   // Discord inputs
-  const discordUrl = core.getInput('discord-url') || undefined;
+  const discordUrl = core.getInput('discord-webhook-url') || undefined;
   const discordMinSeverity = (core.getInput('discord-min-severity') ||
     'info') as NotificationSeverity;
-  const discordUsername = core.getInput('discord-username') || undefined;
-  const discordAvatarUrl = core.getInput('discord-avatar-url') || undefined;
-
   // Slack inputs
-  const slackUrl = core.getInput('slack-url') || undefined;
+  const slackUrl = core.getInput('slack-webhook-url') || undefined;
   const slackMinSeverity = (core.getInput('slack-min-severity') ||
     'info') as NotificationSeverity;
-  const slackChannel = core.getInput('slack-channel') || undefined;
-  const slackUsername = core.getInput('slack-username') || undefined;
-  const slackIconEmoji = core.getInput('slack-icon-emoji') || undefined;
-  const slackIconUrl = core.getInput('slack-icon-url') || undefined;
 
   // SBOM inputs
   const sbomFile = core.getInput('sbom-file') || undefined;
@@ -142,6 +141,12 @@ export function getInputs(): ActionInputs {
     fileFormat,
     versionRegex,
     version,
+    filterByCategory,
+    filterByTag,
+    enableNotifications,
+    notifyOnEolOnly,
+    notifyOnApproachingEol,
+    notificationThresholdDays,
     sbomFile,
     sbomFormat,
     sbomComponentMapping,
@@ -154,27 +159,19 @@ export function getInputs(): ActionInputs {
     maxReleaseDate,
     maxVersions,
     versionSortOrder,
-    failOnNotificationFailure,
     notificationRetryAttempts,
-    notificationRetryDelay,
+    notificationRetryDelayMs: notificationRetryDelay,
     webhookUrl,
     webhookMinSeverity,
     webhookCustomHeaders,
-    webhookPayloadTemplate,
     teamsUrl,
     teamsMinSeverity,
     googleChatUrl,
     googleChatMinSeverity,
     discordUrl,
     discordMinSeverity,
-    discordUsername,
-    discordAvatarUrl,
     slackUrl,
     slackMinSeverity,
-    slackChannel,
-    slackUsername,
-    slackIconEmoji,
-    slackIconUrl,
   };
 }
 

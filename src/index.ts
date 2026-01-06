@@ -56,6 +56,42 @@ async function run(): Promise<void> {
       core.info(`Found ${products.length} products`);
     }
 
+    // Filter products by category or tag if requested
+    if (inputs.filterByCategory) {
+      core.info(`Filtering products by category: ${inputs.filterByCategory}`);
+      const categoryProducts = await client.getProductsByCategory(
+        inputs.filterByCategory
+      );
+      const categoryProductNames = categoryProducts.map((p) => p.name);
+
+      if (products.length === 1 && products[0].toLowerCase() === 'all') {
+        products = categoryProductNames;
+      } else {
+        // Intersect if products were explicitly listed, or union?
+        // Usually if you specify products AND category, you want the intersection.
+        // But if products is empty/all, you want all in category.
+        // Let's go with: if products is not 'all', we intersect.
+        products = products.filter((p) => categoryProductNames.includes(p));
+      }
+      core.info(`Products after category filtering: ${products.length}`);
+    }
+
+    if (inputs.filterByTag) {
+      core.info(`Filtering products by tag: ${inputs.filterByTag}`);
+      const tagProducts = await client.getProductsByTag(inputs.filterByTag);
+      const tagProductNames = tagProducts.map((p) => p.name);
+
+      if (
+        products.length === 0 ||
+        (products.length === 1 && products[0].toLowerCase() === 'all')
+      ) {
+        products = tagProductNames;
+      } else {
+        products = products.filter((p) => tagProductNames.includes(p));
+      }
+      core.info(`Products after tag filtering: ${products.length}`);
+    }
+
     // Handle version extraction
     const versionMap = new Map<string, string>();
 
@@ -111,7 +147,8 @@ async function run(): Promise<void> {
           }
         }
 
-        const sbomVersions = SBOMParser.parseFile(
+        const sbomParser = new SBOMParser(client);
+        const sbomVersions = await sbomParser.parseFile(
           inputs.sbomFile,
           inputs.sbomFormat as SBOMFormat,
           customMapping

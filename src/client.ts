@@ -277,6 +277,44 @@ export class EndOfLifeClient {
   }
 
   /**
+   * Resolve a product name from an identifier (type:value)
+   * @param identifier - Full identifier string (e.g. "purl:pkg:npm/lodash" or "cpe:2.3:a:python:python")
+   */
+  async resolveProductFromIdentifier(
+    identifier: string
+  ): Promise<string | null> {
+    const parts = identifier.split(':');
+    if (parts.length < 2) return null;
+
+    let type = parts[0].toLowerCase();
+    let value = parts.slice(1).join(':');
+
+    // Handle CPE formats specifically
+    if (type === 'cpe') {
+      if (value.startsWith('2.3:')) {
+        type = 'cpe23';
+      } else {
+        type = 'cpe22';
+      }
+    }
+
+    try {
+      const identifiers = await this.getIdentifiersByType(type);
+      const match = identifiers.find(
+        (i) =>
+          i.identifier.toLowerCase() === value.toLowerCase() ||
+          i.identifier.toLowerCase() === identifier.toLowerCase()
+      );
+      return match ? match.product : null;
+    } catch (error) {
+      core.debug(
+        `Failed to resolve identifier ${identifier}: ${getErrorMessage(error)}`
+      );
+      return null;
+    }
+  }
+
+  /**
    * Clear the cache
    */
   clearCache(): void {
