@@ -20,9 +20,9 @@ export function createV1ResponseSchema<T>(schema: z.ZodType<T>) {
  * Latest release version information
  */
 export const LatestReleaseSchema = z.object({
-  name: z.string(),
-  date: z.string().optional(),
-  link: z.string().optional(),
+  name: z.union([z.string(), z.number()]),
+  date: z.union([z.string(), z.null()]).optional(),
+  link: z.union([z.string(), z.null()]).optional(),
 });
 
 export type LatestRelease = z.infer<typeof LatestReleaseSchema>;
@@ -32,21 +32,21 @@ export type LatestRelease = z.infer<typeof LatestReleaseSchema>;
  */
 export const ReleaseSchema = z.object({
   name: z.union([z.string(), z.number()]),
-  codename: z.string().nullable().optional(),
-  label: z.string().optional(),
-  releaseDate: z.string().optional(),
-  isLts: z.boolean().optional(),
-  ltsFrom: z.string().nullable().optional(),
-  isEoas: z.boolean().optional(),
-  eoasFrom: z.string().nullable().optional(),
-  isEol: z.boolean().optional(),
-  eolFrom: z.union([z.string(), z.boolean(), z.null()]).optional(),
-  isEoes: z.boolean().optional(),
-  eoesFrom: z.string().nullable().optional(),
-  isMaintained: z.boolean().optional(),
-  latest: LatestReleaseSchema.optional(),
-  link: z.string().nullable().optional(),
-  discontinued: z.union([z.string(), z.boolean(), z.null()]).optional(),
+  codename: z.union([z.string(), z.null()]).optional(),
+  label: z.union([z.string(), z.null()]).optional(),
+  releaseDate: z.union([z.string(), z.null()]).optional(),
+  isLts: z.union([z.boolean(), z.string(), z.null()]).optional(),
+  ltsFrom: z.union([z.string(), z.null()]).optional(),
+  isEoas: z.union([z.boolean(), z.string(), z.null()]).optional(),
+  eoasFrom: z.union([z.string(), z.null()]).optional(),
+  isEol: z.union([z.boolean(), z.string(), z.null()]).optional(),
+  eolFrom: z.union([z.string(), z.boolean(), z.number(), z.null()]).optional(),
+  isEoes: z.union([z.boolean(), z.string(), z.null()]).optional(),
+  eoesFrom: z.union([z.string(), z.null()]).optional(),
+  isMaintained: z.union([z.boolean(), z.string(), z.null()]).optional(),
+  latest: LatestReleaseSchema.optional().nullable(),
+  link: z.union([z.string(), z.null()]).optional(),
+  discontinued: z.union([z.string(), z.boolean(), z.number(), z.null()]).optional(),
 });
 
 export type Release = z.infer<typeof ReleaseSchema>;
@@ -294,7 +294,14 @@ export class ValidationError extends Error {
     message: string,
     public errors?: z.ZodError
   ) {
-    super(message);
+    let detailedMessage = message;
+    if (errors) {
+      const details = errors.errors
+        .map((e) => `[${e.path.join('.')}] ${e.message}`)
+        .join(', ');
+      detailedMessage = `${message}: ${details}`;
+    }
+    super(detailedMessage);
     this.name = 'ValidationError';
   }
 }

@@ -98,12 +98,12 @@ export abstract class BaseNotificationChannel implements INotificationChannel {
    */
   validate(): boolean {
     if (!this.webhookUrl) {
-      core.warning(`[${this.name}] Webhook URL is not configured`);
+      core.info(`[${this.name}] Webhook URL is not configured`);
       return false;
     }
 
     if (!SecurityUtils.isSafeUrl(this.webhookUrl)) {
-      core.warning(
+      core.info(
         `[${this.name}] Blocked unsafe or private URL: ${this.webhookUrl}`
       );
       return false;

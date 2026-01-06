@@ -78,7 +78,7 @@ interface SPDXDocument {
  * SBOM Parser class
  */
 export class SBOMParser {
-  constructor(private client?: EndOfLifeClient) {}
+  constructor(private client?: EndOfLifeClient) { }
 
   /**
    * Parse SBOM file and extract components
@@ -182,7 +182,7 @@ export class SBOMParser {
     const components = new Map<string, string>();
 
     if (!bom.components || bom.components.length === 0) {
-      core.warning('No components found in CycloneDX BOM');
+      core.info('No components found in CycloneDX BOM');
       return components;
     }
 
@@ -246,7 +246,7 @@ export class SBOMParser {
     const components = new Map<string, string>();
 
     if (!doc.packages || doc.packages.length === 0) {
-      core.warning('No packages found in SPDX document');
+      core.info('No packages found in SPDX document');
       return components;
     }
 

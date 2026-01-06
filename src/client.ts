@@ -91,7 +91,7 @@ export class EndOfLifeClient {
         const maxRetries = 3;
         if (retryAttempt < maxRetries) {
           const delay = Math.pow(2, retryAttempt) * 1000; // 1s, 2s, 4s
-          core.warning(
+          core.info(
             `Rate limited (429). Retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})...`
           );
           await new Promise((resolve) => setTimeout(resolve, delay));

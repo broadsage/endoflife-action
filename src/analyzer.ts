@@ -15,13 +15,16 @@ export class EolAnalyzer {
   constructor(
     private client: EndOfLifeClient,
     private eolThresholdDays: number
-  ) {}
+  ) { }
 
   /**
    * Parse date from various formats
    */
-  private parseDate(value: string | boolean | null | undefined): Date | null {
-    if (!value || typeof value === 'boolean') return null;
+  private parseDate(
+    value: string | boolean | number | null | undefined
+  ): Date | null {
+    if (!value || typeof value === 'boolean' || typeof value === 'number')
+      return null;
 
     try {
       const date = parseISO(value);
@@ -133,10 +136,10 @@ export class EolAnalyzer {
       eolDate: eolDate ? eolDate.toISOString().split('T')[0] : null,
       daysUntilEol: this.calculateDaysUntilEol(release),
       releaseDate: releaseDate ? releaseDate.toISOString().split('T')[0] : null,
-      latestVersion: release.latest?.name || null,
+      latestVersion: release.latest?.name ? String(release.latest.name) : null,
       isLts: this.isLts(release),
       supportDate: supportDate ? supportDate.toISOString().split('T')[0] : null,
-      link: release.link || null,
+      link: release.link ? String(release.link) : null,
       discontinuedDate: discontinuedDate
         ? discontinuedDate.toISOString().split('T')[0]
         : null,
