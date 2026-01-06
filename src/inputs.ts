@@ -10,7 +10,16 @@ import { getErrorMessage } from './utils/error-utils';
  */
 export function getInputs(): ActionInputs {
   const products = core.getInput('products', { required: true });
-  const releases = core.getInput('releases') || core.getInput('cycles') || '{}';
+  let releasesInput = core.getInput('releases');
+  const cyclesInput = core.getInput('cycles');
+
+  // Use cycles as an alias if releases is at its default value or empty
+  const releases =
+    (releasesInput === '{}' || !releasesInput) &&
+    cyclesInput &&
+    cyclesInput !== '{}'
+      ? cyclesInput
+      : releasesInput || '{}';
   const checkEol = core.getBooleanInput('check-eol');
   const eolThresholdDays = parseInt(
     core.getInput('eol-threshold-days') || '90',
@@ -251,16 +260,6 @@ export function validateInputs(inputs: ActionInputs): void {
 
     if (inputs.fileFormat === 'text' && !inputs.versionRegex) {
       throw new Error('version-regex is required when file-format is text');
-    }
-  }
-
-  // Validate that file-path, version, or releases is provided
-  if (!inputs.filePath && !inputs.version && inputs.releases === '{}') {
-    const products = parseProducts(inputs.products);
-    if (products.length === 1 && products[0].toLowerCase() !== 'all') {
-      throw new Error(
-        'For single product tracking, either file-path, version, or releases must be specified'
-      );
     }
   }
 

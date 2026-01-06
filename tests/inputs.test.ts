@@ -124,7 +124,7 @@ describe('Input Parsing and Validation', () => {
         it('should support cycles as an alias for releases', () => {
             mockCore.getInput.mockImplementation((name: string) => {
                 if (name === 'cycles') return '{"python": ["3.11"]}';
-                if (name === 'releases') return '';
+                if (name === 'releases') return '{}';
                 return '';
             });
 
@@ -382,7 +382,7 @@ describe('Input Parsing and Validation', () => {
             );
         });
 
-        it('should require file-path, version, or releases for single product', () => {
+        it('should allow single product without file-path, version, or releases', () => {
             const inputs = {
                 ...validInputs,
                 products: 'python',
@@ -391,12 +391,10 @@ describe('Input Parsing and Validation', () => {
                 version: '',
             };
 
-            expect(() => validateInputs(inputs)).toThrow(
-                'For single product tracking, either file-path, version, or releases must be specified'
-            );
+            expect(() => validateInputs(inputs)).not.toThrow();
         });
 
-        it('should not require file-path/version/releases for multiple products', () => {
+        it('should allow multiple products without file-path/version/releases', () => {
             const inputs = {
                 ...validInputs,
                 products: 'python,nodejs',
