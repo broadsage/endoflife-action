@@ -1,7 +1,7 @@
 {
   "name": "endoflife-action",
   "version": "4.1.1",
-  "description": "GitHub Action to track software versions and End-of-Life dates using endoflife.date API",
+  "description": "Automate software lifecycle tracking with intelligent EOL detection, multi-channel notifications, and seamless CI/CD integration",
   "main": "dist/index.js",
   "scripts": {
     "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt && npm run build:cleanup",
