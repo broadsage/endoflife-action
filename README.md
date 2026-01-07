@@ -118,6 +118,13 @@ jobs:
 
 </details>
 
+<details>
+<summary><b>📖 Full Reference</b></summary>
+
+For a complete list of all available inputs and outputs, please refer to our **[Inputs & Outputs Documentation](docs/inputs-outputs.md)**.
+
+</details>
+
 ---
 
 ## 🏆 Why Choose This Action?
