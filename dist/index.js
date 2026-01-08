@@ -58131,7 +58131,7 @@ function formatAsDashboard(results) {
     const activeProducts = results.products.filter((p) => p.status === types_1.EolStatus.ACTIVE);
     if (activeProducts.length > 0) {
         lines.push('## 🟢 Healthy & Supported');
-        lines.push(MarkdownHelper.createDetails('Click to view all healthy dependencies', MarkdownHelper.createTable(['Product', 'Version', 'EOL Date', 'LTS', 'Latest'], activeProducts.map((p) => `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`))));
+        lines.push(MarkdownHelper.createTable(['Product', 'Version', 'EOL Date', 'LTS', 'Latest'], activeProducts.map((p) => `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`)));
     }
     lines.push('---\n' +
         `*Last updated: ${new Date().toUTCString()} | [Report Link](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})*`);

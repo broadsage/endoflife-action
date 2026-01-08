@@ -504,14 +504,11 @@ export function formatAsDashboard(results: ActionResults): string {
   if (activeProducts.length > 0) {
     lines.push('## 🟢 Healthy & Supported');
     lines.push(
-      MarkdownHelper.createDetails(
-        'Click to view all healthy dependencies',
-        MarkdownHelper.createTable(
-          ['Product', 'Version', 'EOL Date', 'LTS', 'Latest'],
-          activeProducts.map(
-            (p) =>
-              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`
-          )
+      MarkdownHelper.createTable(
+        ['Product', 'Version', 'EOL Date', 'LTS', 'Latest'],
+        activeProducts.map(
+          (p) =>
+            `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`
         )
       )
     );
