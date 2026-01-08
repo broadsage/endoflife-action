@@ -19,7 +19,7 @@ class MarkdownHelper {
   ): string {
     switch (type) {
       case 'dashboard':
-        return `| **${p.product}** | \`${p.release}\` | ${p.eolDate || 'N/A'} | Update to \`${p.latestVersion || 'latest'}\` |`;
+        return `| **${p.product}** | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | Update to \`${p.latestVersion || 'latest'}\` |`;
       case 'stale':
         return `| **${p.product}** | \`${p.release}\` | ${p.latestReleaseDate || 'N/A'} | \`${p.daysSinceLatestRelease}\` days stale |`;
       case 'discontinued':
@@ -431,7 +431,7 @@ export function formatAsDashboard(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createTable(
-        ['Product', 'Version', 'EOL Date', 'Recommended'],
+        ['Product', 'Version', 'EOL Date', 'LTS', 'Recommended'],
         recentEol.map((p) => MarkdownHelper.formatProductRow(p, 'dashboard'))
       )
     );
@@ -446,10 +446,10 @@ export function formatAsDashboard(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createTable(
-        ['Product', 'Version', 'EOL Date', 'Days Left'],
+        ['Product', 'Version', 'EOL Date', 'LTS', 'Days Left'],
         results.approachingEolProducts.map(
           (p) =>
-            `| **${p.product}** | \`${p.release}\` | ${p.eolDate} | \`${p.daysUntilEol}\` days |`
+            `| **${p.product}** | \`${p.release}\` | ${p.eolDate} | ${p.isLts ? '✓' : '✗'} | \`${p.daysUntilEol}\` days |`
         )
       )
     );
@@ -461,10 +461,10 @@ export function formatAsDashboard(results: ActionResults): string {
       MarkdownHelper.createDetails(
         'Click to view products EOL for > 90 days',
         MarkdownHelper.createTable(
-          ['Product', 'Version', 'EOL Date', 'Latest'],
+          ['Product', 'Version', 'EOL Date', 'LTS', 'Latest'],
           legacyEol.map(
             (p) =>
-              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | \`${p.latestVersion || 'N/A'}\` |`
+              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`
           )
         )
       )
@@ -497,10 +497,10 @@ export function formatAsDashboard(results: ActionResults): string {
       MarkdownHelper.createDetails(
         'Click to view all healthy dependencies',
         MarkdownHelper.createTable(
-          ['Product', 'Version', 'EOL Date', 'Latest'],
+          ['Product', 'Version', 'EOL Date', 'LTS', 'Latest'],
           activeProducts.map(
             (p) =>
-              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | \`${p.latestVersion || 'N/A'}\` |`
+              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`
           )
         )
       )

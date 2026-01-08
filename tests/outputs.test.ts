@@ -213,11 +213,10 @@ describe('Output Formatting', () => {
         it('should format results as a modern dashboard with legacy EOL', () => {
             const result = formatAsDashboard(mockResults);
 
-            expect(result).toContain('# 🛡️ Software Lifecycle Dashboard');
-            expect(result).toContain('### 📊 Status Overview');
-            expect(result).toContain('> 🔴 **1** End-of-Life');
+            expect(result).toContain('> 🔴 **1** End-of-Life | 🟠 **0** Warning | 🟢 **0** Healthy');
+            expect(result).toContain('| Product | Version | EOL Date | LTS | Latest |');
             expect(result).toContain('## 💾 Legacy End-of-Life');
-            expect(result).toContain('python');
+            expect(result).toContain('| python | `2.7` | 2020-01-01 | ✗ | `2.7.18` |');
         });
 
         it('should format results with recent EOL', () => {
@@ -234,7 +233,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsDashboard(results);
             expect(result).toContain('## 🔴 Critical: Recent End-of-Life');
-            expect(result).toContain('Update to `2.7.18`');
+            expect(result).toContain('| **python** | `2.7` | 2025-12-01 | ✗ | Update to `2.7.18` |');
         });
 
         it('should include healthy products section', () => {
@@ -250,7 +249,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsDashboard(results);
             expect(result).toContain('## 🟢 Healthy & Supported');
-            expect(result).toContain('3.11');
+            expect(result).toContain('| python | `3.11` | 2020-01-01 | ✗ | `2.7.18` |');
         });
     });
 
