@@ -55942,12 +55942,25 @@ class GitHubIntegration {
     async ensureLabelExists(name, description, color = '0e8a16') {
         const { owner, repo } = this.context.repo;
         try {
-            await this.octokit.rest.issues.getLabel({
+            const { data: existingLabel } = await this.octokit.rest.issues.getLabel({
                 owner,
                 repo,
                 name,
             });
-            core.debug(`Label '${name}' already exists.`);
+            // Check if description or color needs updating
+            if (existingLabel.description !== description ||
+                existingLabel.color.toLowerCase() !== color.toLowerCase()) {
+                core.info(`Updating label '${name}' with correct description and color...`);
+                await this.octokit.rest.issues.updateLabel({
+                    owner,
+                    repo,
+                    name,
+                    new_name: name,
+                    description,
+                    color,
+                });
+            }
+            core.debug(`Label '${name}' is up to date.`);
         }
         catch (error) {
             // GitHub API returns 404 if the label doesn't exist
