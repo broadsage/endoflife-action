@@ -114,7 +114,7 @@ export function formatAsMarkdown(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createDetails(
-        `❌ **CRITICAL:** ${eolCount} End-of-Life versions detected`,
+        `❌ CRITICAL: ${eolCount} End-of-Life versions detected`,
         `**Description:** The following software versions have reached their End-of-Life (EOL) date. They no longer receive security updates or bug fixes and should be upgraded immediately to the latest supported versions.\n\n${table}`
       )
     );
@@ -137,7 +137,7 @@ export function formatAsMarkdown(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createDetails(
-        `⚠️ **WARNING:** ${approachingCount} versions approaching End-of-Life`,
+        `⚠️ WARNING: ${approachingCount} versions approaching End-of-Life`,
         `**Description:** These versions are nearing their maintenance cutoff. Planning upgrades now will ensure a smooth transition before support ends.\n\n${table}`
       )
     );
@@ -152,7 +152,7 @@ export function formatAsMarkdown(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createDetails(
-        `⏰ **STALE:** ${staleCount} stale versions detected`,
+        `⏰ STALE: ${staleCount} stale versions detected`,
         `**Description:** These products haven't seen an update in over a year (or your configured threshold). While they may still be supported, they might be missing recent stability or performance improvements.\n\n${table}`
       )
     );
@@ -180,7 +180,7 @@ export function formatAsMarkdown(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createDetails(
-        `✅ **HEALTHY:** ${activeProducts.length} versions with active support`,
+        `✅ HEALTHY: ${activeProducts.length} versions with active support`,
         `**Description:** These versions are fully supported and up to date.\n\n${table}`
       )
     );
