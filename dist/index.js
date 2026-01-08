@@ -56176,12 +56176,13 @@ async function run() {
             const issueNumber = await ghIntegration.createEolIssue(results, labels);
             if (issueNumber) {
                 core.info(`Issue created/updated: #${issueNumber}`);
+                core.setOutput('issue-number', issueNumber);
             }
             else {
                 core.warning('Failed to create or update issue');
             }
         }
-        // Handle dashboard creation/update (Phase 6)
+        // Handle dashboard creation/update
         if (inputs.useDashboard && inputs.githubToken) {
             core.info('Upserting Software Lifecycle Dashboard...');
             const ghIntegration = new github_1.GitHubIntegration(inputs.githubToken);
@@ -56192,6 +56193,7 @@ async function run() {
             const dashboardNumber = await ghIntegration.upsertDashboardIssue(results, inputs.dashboardTitle, labels);
             if (dashboardNumber) {
                 core.info(`Dashboard updated: #${dashboardNumber}`);
+                core.setOutput('dashboard-issue-number', dashboardNumber);
             }
         }
         // Send notifications to configured channels

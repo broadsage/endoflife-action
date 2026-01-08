@@ -206,6 +206,35 @@ describe('Output Formatting', () => {
         });
     });
 
+    describe('formatAsDashboard', () => {
+        const { formatAsDashboard } = require('../src/outputs');
+
+        it('should format results as a modern dashboard', () => {
+            const result = formatAsDashboard(mockResults);
+
+            expect(result).toContain('# 🛡️ Software Lifecycle Dashboard');
+            expect(result).toContain('### 📊 Status Overview');
+            expect(result).toContain('> 🔴 **1** End-of-Life');
+            expect(result).toContain('## 🔴 Critical Attention Required');
+        });
+
+        it('should include healthy products section', () => {
+            const activeProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.ACTIVE,
+                release: '3.11',
+            };
+            const results: ActionResults = {
+                ...mockResults,
+                products: [activeProduct],
+            };
+
+            const result = formatAsDashboard(results);
+            expect(result).toContain('## 🟢 Healthy & Supported');
+            expect(result).toContain('3.11');
+        });
+    });
+
     describe('createIssueBody', () => {
         it('should create issue body with EOL information', () => {
             const result = createIssueBody(mockResults);

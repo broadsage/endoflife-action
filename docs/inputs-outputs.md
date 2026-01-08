@@ -110,3 +110,5 @@ Configure alerts for different communication channels.
 | `discontinued-detected` | Boolean indicating if any discontinued products were detected. |
 | `discontinued-products` | JSON array of discontinued products/devices. |
 | `extended-support-products`| JSON array of products with extended support available. |
+| `issue-number` | The number of the created or updated GitHub issue. |
+| `dashboard-issue-number` | The number of the created or updated Dashboard issue. |

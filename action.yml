@@ -323,6 +323,12 @@ outputs:
   
   extended-support-products:
     description: 'JSON array of products with extended support available'
+  
+  issue-number:
+    description: 'The number of the created or updated GitHub issue (if create-issue-on-eol is enabled)'
+  
+  dashboard-issue-number:
+    description: 'The number of the created or updated Lifecycle Dashboard issue (if use-dashboard is enabled)'
 
 
 branding:

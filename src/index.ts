@@ -269,6 +269,7 @@ async function run(): Promise<void> {
       const issueNumber = await ghIntegration.createEolIssue(results, labels);
       if (issueNumber) {
         core.info(`Issue created/updated: #${issueNumber}`);
+        core.setOutput('issue-number', issueNumber);
       } else {
         core.warning('Failed to create or update issue');
       }
@@ -291,6 +292,7 @@ async function run(): Promise<void> {
 
       if (dashboardNumber) {
         core.info(`Dashboard updated: #${dashboardNumber}`);
+        core.setOutput('dashboard-issue-number', dashboardNumber);
       }
     }
 
