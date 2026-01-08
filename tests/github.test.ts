@@ -104,6 +104,7 @@ describe('GitHubIntegration', () => {
                     update: jest.fn(),
                     getLabel: jest.fn(),
                     createLabel: jest.fn(),
+                    updateLabel: jest.fn(),
                 },
             },
         };
@@ -279,13 +280,34 @@ describe('GitHubIntegration', () => {
             });
         });
 
-        it('should not create label if it already exists', async () => {
-            mockOctokit.rest.issues.getLabel.mockResolvedValue({ data: {} });
+        it('should update label if it exists but has different description or color', async () => {
+            mockOctokit.rest.issues.getLabel.mockResolvedValue({
+                data: { name: 'existing-label', description: 'old-desc', color: '000000' }
+            });
+            mockOctokit.rest.issues.updateLabel.mockResolvedValue({});
 
-            await ghIntegration.ensureLabelExists('existing-label', 'desc');
+            await ghIntegration.ensureLabelExists('existing-label', 'new-desc', 'ffffff');
+
+            expect(mockOctokit.rest.issues.updateLabel).toHaveBeenCalledWith({
+                owner: 'test-owner',
+                repo: 'test-repo',
+                name: 'existing-label',
+                new_name: 'existing-label',
+                description: 'new-desc',
+                color: 'ffffff',
+            });
+        });
+
+        it('should not create or update label if it matches', async () => {
+            mockOctokit.rest.issues.getLabel.mockResolvedValue({
+                data: { name: 'match-label', description: 'match-desc', color: 'ffffff' }
+            });
+
+            await ghIntegration.ensureLabelExists('match-label', 'match-desc', 'ffffff');
 
             expect(mockOctokit.rest.issues.getLabel).toHaveBeenCalled();
             expect(mockOctokit.rest.issues.createLabel).not.toHaveBeenCalled();
+            expect(mockOctokit.rest.issues.updateLabel).not.toHaveBeenCalled();
         });
 
         it('should handle unexpected errors gracefully', async () => {
