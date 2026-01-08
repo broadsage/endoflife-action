@@ -229,6 +229,8 @@ export const ActionInputsSchema = z.object({
   githubToken: z.string(),
   createIssueOnEol: z.boolean(),
   issueLabels: z.string(),
+  useDashboard: z.boolean(),
+  dashboardTitle: z.string(),
   includeLatestVersion: z.boolean(),
   includeSupportInfo: z.boolean(),
   customApiUrl: z.string().url(),

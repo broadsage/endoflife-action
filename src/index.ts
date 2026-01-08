@@ -274,6 +274,26 @@ async function run(): Promise<void> {
       }
     }
 
+    // Handle dashboard creation/update
+    if (inputs.useDashboard && inputs.githubToken) {
+      core.info('Upserting Software Lifecycle Dashboard...');
+      const ghIntegration = new GitHubIntegration(inputs.githubToken);
+      const labels = inputs.issueLabels
+        .split(',')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+
+      const dashboardNumber = await ghIntegration.upsertDashboardIssue(
+        results,
+        inputs.dashboardTitle,
+        labels
+      );
+
+      if (dashboardNumber) {
+        core.info(`Dashboard updated: #${dashboardNumber}`);
+      }
+    }
+
     // Send notifications to configured channels
     try {
       const notificationConfig = getNotificationConfig();

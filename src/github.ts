@@ -4,7 +4,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { ActionResults } from './types';
-import { createIssueBody } from './outputs';
+import { createIssueBody, formatAsDashboard } from './outputs';
 import { getErrorMessage } from './utils/error-utils';
 
 /**
@@ -125,6 +125,63 @@ export class GitHubIntegration {
     } catch (error) {
       core.error(`Failed to close issue: ${getErrorMessage(error)}`);
       throw error;
+    }
+  }
+
+  /**
+   * Create or update the Lifecycle Dashboard issue
+   */
+  async upsertDashboardIssue(
+    results: ActionResults,
+    title: string,
+    labels: string[]
+  ): Promise<number | null> {
+    const { owner, repo } = this.context.repo;
+    const body = formatAsDashboard(results);
+    const dashboardLabel = 'lifecycle-dashboard';
+    const allLabels = Array.from(new Set([...labels, dashboardLabel]));
+
+    try {
+      // Find existing dashboard issue
+      const issues = await this.octokit.rest.issues.listForRepo({
+        owner,
+        repo,
+        state: 'open',
+        labels: dashboardLabel,
+        per_page: 5,
+      });
+
+      const existingDashboard = issues.data[0];
+
+      if (existingDashboard) {
+        core.info(
+          `Updating existing dashboard issue #${existingDashboard.number}`
+        );
+        await this.octokit.rest.issues.update({
+          owner,
+          repo,
+          issue_number: existingDashboard.number,
+          title, // Update title in case it changed
+          body,
+        });
+        return existingDashboard.number;
+      }
+
+      // Create new dashboard issue
+      core.info('Creating new dashboard issue');
+      const newIssue = await this.octokit.rest.issues.create({
+        owner,
+        repo,
+        title,
+        body,
+        labels: allLabels,
+      });
+
+      core.info(`Created dashboard issue #${newIssue.data.number}`);
+      return newIssue.data.number;
+    } catch (error) {
+      core.error(`Failed to upsert dashboard: ${getErrorMessage(error)}`);
+      return null;
     }
   }
 }

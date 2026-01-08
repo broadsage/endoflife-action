@@ -45,6 +45,9 @@ export function getInputs(): ActionInputs {
   const includeSupportInfo = core.getBooleanInput('include-support-info');
   const customApiUrl =
     core.getInput('custom-api-url') || 'https://endoflife.date/api/v1';
+  const useDashboard = core.getBooleanInput('use-dashboard');
+  const dashboardTitle =
+    core.getInput('dashboard-title') || 'Software Lifecycle Dashboard 🛡️';
 
   // File extraction inputs
   const filePath = core.getInput('file-path') || '';
@@ -145,6 +148,8 @@ export function getInputs(): ActionInputs {
     includeLatestVersion,
     includeSupportInfo,
     customApiUrl,
+    useDashboard,
+    dashboardTitle,
     filePath,
     fileKey,
     fileFormat,
@@ -237,6 +242,10 @@ export function validateInputs(inputs: ActionInputs): void {
     throw new Error(
       'GitHub token is required when create-issue-on-eol is enabled'
     );
+  }
+
+  if (inputs.useDashboard && !inputs.githubToken) {
+    throw new Error('GitHub token is required when use-dashboard is enabled');
   }
 
   // Validate releases JSON

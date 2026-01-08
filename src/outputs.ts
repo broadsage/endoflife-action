@@ -331,3 +331,101 @@ export function createIssueBody(results: ActionResults): string {
 
   return lines.join('\n');
 }
+
+/**
+ * Create a modern lifecycle dashboard body
+ */
+export function formatAsDashboard(results: ActionResults): string {
+  const lines: string[] = [];
+
+  lines.push('# 🛡️ Software Lifecycle Dashboard');
+  lines.push('');
+  lines.push(
+    'This dashboard provides a live overview of the support status for all tracked software dependencies. It is automatically updated by the [Software Lifecycle Tracker](https://github.com/broadsage/lifecycle-action).'
+  );
+  lines.push('');
+
+  // Status Summary Cards
+  const eolCount = results.eolProducts.length;
+  const approachingCount = results.approachingEolProducts.length;
+  const healthyCount = results.products.filter(
+    (p) => p.status === EolStatus.ACTIVE
+  ).length;
+
+  lines.push('### 📊 Status Overview');
+  lines.push(
+    `> 🔴 **${eolCount}** End-of-Life | 🟠 **${approachingCount}** Warning | 🟢 **${healthyCount}** Healthy`
+  );
+  lines.push('');
+
+  if (results.eolProducts.length > 0) {
+    lines.push('## 🔴 Critical Attention Required');
+    lines.push('The following versions have reached End-of-Life:');
+    lines.push('');
+    lines.push('| Product | Version | EOL Date | Recommended |');
+    lines.push('| :--- | :--- | :--- | :--- |');
+    for (const p of results.eolProducts) {
+      lines.push(
+        `| **${p.product}** | \`${p.release}\` | ${p.eolDate} | Update to \`${p.latestVersion || 'latest'}\` |`
+      );
+    }
+    lines.push('');
+  }
+
+  if (results.approachingEolProducts.length > 0) {
+    lines.push('## 🟠 Upcoming Risks');
+    lines.push('These versions are approaching EOL soon. Plan your migration.');
+    lines.push('');
+    lines.push('| Product | Version | EOL Date | Days Left |');
+    lines.push('| :--- | :--- | :--- | :--- |');
+    for (const p of results.approachingEolProducts) {
+      lines.push(
+        `| **${p.product}** | \`${p.release}\` | ${p.eolDate} | \`${p.daysUntilEol}\` days |`
+      );
+    }
+    lines.push('');
+  }
+
+  if (results.staleProducts.length > 0) {
+    lines.push('## ⏰ Maintenance Required');
+    lines.push(
+      'No updates have been released for these versions in over a year.'
+    );
+    lines.push('');
+    lines.push('| Product | Version | Last Update | Status |');
+    lines.push('| :--- | :--- | :--- | :--- |');
+    for (const p of results.staleProducts) {
+      lines.push(
+        `| **${p.product}** | \`${p.release}\` | ${p.latestReleaseDate || 'N/A'} | \`${p.daysSinceLatestRelease}\` days stale |`
+      );
+    }
+    lines.push('');
+  }
+
+  const activeProducts = results.products.filter(
+    (p) => p.status === EolStatus.ACTIVE
+  );
+  if (activeProducts.length > 0) {
+    lines.push('## 🟢 Healthy & Supported');
+    lines.push('<details>');
+    lines.push('<summary>Click to view all healthy dependencies</summary>');
+    lines.push('');
+    lines.push('| Product | Version | EOL Date | Latest |');
+    lines.push('| :--- | :--- | :--- | :--- |');
+    for (const p of activeProducts) {
+      lines.push(
+        `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | \`${p.latestVersion || 'N/A'}\` |`
+      );
+    }
+    lines.push('');
+    lines.push('</details>');
+    lines.push('');
+  }
+
+  lines.push('---');
+  lines.push(
+    `*Last updated: ${new Date().toUTCString()} | [Report Link](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})*`
+  );
+
+  return lines.join('\n');
+}

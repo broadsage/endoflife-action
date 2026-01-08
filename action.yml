@@ -84,6 +84,16 @@ inputs:
     required: false
     default: 'dependencies,eol,security'
   
+  use-dashboard:
+    description: 'Maintain a single persistent dashboard issue instead of multiple EOL issues'
+    required: false
+    default: 'false'
+  
+  dashboard-title:
+    description: 'Title for the lifecycle dashboard issue'
+    required: false
+    default: 'Software Lifecycle Dashboard'
+  
   include-latest-version:
     description: 'Include latest version information in output'
     required: false

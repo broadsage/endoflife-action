@@ -23,6 +23,8 @@ This document provides a comprehensive reference for all available configuration
 | `github-token` | GitHub token for creating issues/PRs (optional). | No | — |
 | `create-issue-on-eol` | Create a GitHub issue when EOL is detected (requires `github-token`). | No | `false` |
 | `issue-labels` | Comma-separated labels for created issues. | No | `dependencies,eol,security` |
+| `use-dashboard` | Maintain a single persistent dashboard issue (Phase 6). | No | `false` |
+| `dashboard-title`| Title for the lifecycle dashboard issue. | No | `Software Lifecycle Dashboard 🛡️` |
 | `include-latest-version` | Include latest version information in output. | No | `true` |
 | `include-support-info` | Include support status information in output. | No | `true` |
 | `custom-api-url` | Custom API URL (for testing or self-hosted instances). | No | `https://endoflife.date/api/v1` |

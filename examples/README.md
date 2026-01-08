@@ -140,6 +140,17 @@ Track hardware devices like iPhone, Pixel, or Kindle for EOL.
 
 ---
 
+### [Lifecycle Dashboard](lifecycle-dashboard.yml)
+Maintain a single persistent dashboard issue for repo-wide status visibility.
+
+**Features:**
+- Persistent status issue (self-healing)
+- Modern status overview (Green/Amber/Red)
+- Categorized tables for Risks, Maintenance, and Healthy dependencies
+- Historical visibility through issue edits
+
+---
+
 ## Quick Start
 
 1. **Choose an example** that matches your use case

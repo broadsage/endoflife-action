@@ -1,0 +1,35 @@
+name: 'Lifecycle Dashboard'
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run daily at midnight
+  workflow_dispatch: # Allow manual runs
+
+permissions:
+  issues: write # Required to create/update the dashboard issue
+  contents: read
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Lifecycle Dashboard
+        uses: broadsage/lifecycle-action@v4
+        with:
+          # Track all key infrastructure products
+          products: 'python,nodejs,ubuntu,postgresql,redis,kubernetes'
+          
+          # Enable the dashboard (Phase 6)
+          use-dashboard: true
+          
+          # Custom dashboard title
+          dashboard-title: '🚀 Project Dependency Health'
+          
+          # Provide token for issue management
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Optional: Only fail CI if something is critically EOL
+          fail-on-eol: true

@@ -42,6 +42,8 @@ describe('Input Parsing and Validation', () => {
                     'max-release-date': '',
                     'max-versions': '',
                     'version-sort-order': 'newest-first',
+                    'use-dashboard': 'false',
+                    'dashboard-title': 'Software Lifecycle Dashboard',
                 };
                 return defaults[name] || '';
             });
@@ -60,6 +62,7 @@ describe('Input Parsing and Validation', () => {
                     'output-matrix': false,
                     'exclude-eol-from-matrix': true,
                     'exclude-approaching-eol-from-matrix': false,
+                    'use-dashboard': false,
                 };
                 return defaults[name] || false;
             });
@@ -258,6 +261,9 @@ describe('Input Parsing and Validation', () => {
             googleChatMinSeverity: NotificationSeverity.INFO,
             discordMinSeverity: NotificationSeverity.INFO,
             slackMinSeverity: NotificationSeverity.INFO,
+            webhookCustomHeaders: undefined,
+            useDashboard: false,
+            dashboardTitle: 'Software Lifecycle Dashboard 🛡️',
             filterByCategory: undefined,
             filterByTag: undefined,
         };

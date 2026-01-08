@@ -55884,6 +55884,52 @@ class GitHubIntegration {
             throw error;
         }
     }
+    /**
+     * Create or update the Lifecycle Dashboard issue
+     */
+    async upsertDashboardIssue(results, title, labels) {
+        const { owner, repo } = this.context.repo;
+        const body = (0, outputs_1.formatAsDashboard)(results);
+        const dashboardLabel = 'lifecycle-dashboard';
+        const allLabels = Array.from(new Set([...labels, dashboardLabel]));
+        try {
+            // Find existing dashboard issue
+            const issues = await this.octokit.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: 'open',
+                labels: dashboardLabel,
+                per_page: 5,
+            });
+            const existingDashboard = issues.data[0];
+            if (existingDashboard) {
+                core.info(`Updating existing dashboard issue #${existingDashboard.number}`);
+                await this.octokit.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: existingDashboard.number,
+                    title, // Update title in case it changed
+                    body,
+                });
+                return existingDashboard.number;
+            }
+            // Create new dashboard issue
+            core.info('Creating new dashboard issue');
+            const newIssue = await this.octokit.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels: allLabels,
+            });
+            core.info(`Created dashboard issue #${newIssue.data.number}`);
+            return newIssue.data.number;
+        }
+        catch (error) {
+            core.error(`Failed to upsert dashboard: ${(0, error_utils_1.getErrorMessage)(error)}`);
+            return null;
+        }
+    }
 }
 exports.GitHubIntegration = GitHubIntegration;
 
@@ -56135,6 +56181,19 @@ async function run() {
                 core.warning('Failed to create or update issue');
             }
         }
+        // Handle dashboard creation/update (Phase 6)
+        if (inputs.useDashboard && inputs.githubToken) {
+            core.info('Upserting Software Lifecycle Dashboard...');
+            const ghIntegration = new github_1.GitHubIntegration(inputs.githubToken);
+            const labels = inputs.issueLabels
+                .split(',')
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0);
+            const dashboardNumber = await ghIntegration.upsertDashboardIssue(results, inputs.dashboardTitle, labels);
+            if (dashboardNumber) {
+                core.info(`Dashboard updated: #${dashboardNumber}`);
+            }
+        }
         // Send notifications to configured channels
         try {
             const notificationConfig = (0, notifications_1.getNotificationConfig)();
@@ -56270,6 +56329,8 @@ function getInputs() {
     const includeLatestVersion = core.getBooleanInput('include-latest-version');
     const includeSupportInfo = core.getBooleanInput('include-support-info');
     const customApiUrl = core.getInput('custom-api-url') || 'https://endoflife.date/api/v1';
+    const useDashboard = core.getBooleanInput('use-dashboard');
+    const dashboardTitle = core.getInput('dashboard-title') || 'Software Lifecycle Dashboard 🛡️';
     // File extraction inputs
     const filePath = core.getInput('file-path') || '';
     const fileKey = core.getInput('file-key') || '';
@@ -56343,6 +56404,8 @@ function getInputs() {
         includeLatestVersion,
         includeSupportInfo,
         customApiUrl,
+        useDashboard,
+        dashboardTitle,
         filePath,
         fileKey,
         fileFormat,
@@ -56426,6 +56489,9 @@ function validateInputs(inputs) {
     }
     if (inputs.createIssueOnEol && !inputs.githubToken) {
         throw new Error('GitHub token is required when create-issue-on-eol is enabled');
+    }
+    if (inputs.useDashboard && !inputs.githubToken) {
+        throw new Error('GitHub token is required when use-dashboard is enabled');
     }
     // Validate releases JSON
     try {
@@ -57703,6 +57769,7 @@ exports.generateMatrix = generateMatrix;
 exports.generateMatrixInclude = generateMatrixInclude;
 exports.setOutputs = setOutputs;
 exports.createIssueBody = createIssueBody;
+exports.formatAsDashboard = formatAsDashboard;
 const core = __importStar(__nccwpck_require__(37484));
 const fs = __importStar(__nccwpck_require__(91943));
 const types_1 = __nccwpck_require__(38522);
@@ -57943,6 +58010,74 @@ function createIssueBody(results) {
     lines.push('---');
     lines.push('');
     lines.push('*This issue was created automatically by [Software Lifecycle Tracker](https://github.com/broadsage/lifecycle-action)*');
+    return lines.join('\n');
+}
+/**
+ * Create a modern lifecycle dashboard body
+ */
+function formatAsDashboard(results) {
+    const lines = [];
+    lines.push('# 🛡️ Software Lifecycle Dashboard');
+    lines.push('');
+    lines.push('This dashboard provides a live overview of the support status for all tracked software dependencies. It is automatically updated by the [Software Lifecycle Tracker](https://github.com/broadsage/lifecycle-action).');
+    lines.push('');
+    // Status Summary Cards
+    const eolCount = results.eolProducts.length;
+    const approachingCount = results.approachingEolProducts.length;
+    const healthyCount = results.products.filter((p) => p.status === types_1.EolStatus.ACTIVE).length;
+    lines.push('### 📊 Status Overview');
+    lines.push(`> 🔴 **${eolCount}** End-of-Life | 🟠 **${approachingCount}** Warning | 🟢 **${healthyCount}** Healthy`);
+    lines.push('');
+    if (results.eolProducts.length > 0) {
+        lines.push('## 🔴 Critical Attention Required');
+        lines.push('The following versions have reached End-of-Life:');
+        lines.push('');
+        lines.push('| Product | Version | EOL Date | Recommended |');
+        lines.push('| :--- | :--- | :--- | :--- |');
+        for (const p of results.eolProducts) {
+            lines.push(`| **${p.product}** | \`${p.release}\` | ${p.eolDate} | Update to \`${p.latestVersion || 'latest'}\` |`);
+        }
+        lines.push('');
+    }
+    if (results.approachingEolProducts.length > 0) {
+        lines.push('## 🟠 Upcoming Risks');
+        lines.push('These versions are approaching EOL soon. Plan your migration.');
+        lines.push('');
+        lines.push('| Product | Version | EOL Date | Days Left |');
+        lines.push('| :--- | :--- | :--- | :--- |');
+        for (const p of results.approachingEolProducts) {
+            lines.push(`| **${p.product}** | \`${p.release}\` | ${p.eolDate} | \`${p.daysUntilEol}\` days |`);
+        }
+        lines.push('');
+    }
+    if (results.staleProducts.length > 0) {
+        lines.push('## ⏰ Maintenance Required');
+        lines.push('No updates have been released for these versions in over a year.');
+        lines.push('');
+        lines.push('| Product | Version | Last Update | Status |');
+        lines.push('| :--- | :--- | :--- | :--- |');
+        for (const p of results.staleProducts) {
+            lines.push(`| **${p.product}** | \`${p.release}\` | ${p.latestReleaseDate || 'N/A'} | \`${p.daysSinceLatestRelease}\` days stale |`);
+        }
+        lines.push('');
+    }
+    const activeProducts = results.products.filter((p) => p.status === types_1.EolStatus.ACTIVE);
+    if (activeProducts.length > 0) {
+        lines.push('## 🟢 Healthy & Supported');
+        lines.push('<details>');
+        lines.push('<summary>Click to view all healthy dependencies</summary>');
+        lines.push('');
+        lines.push('| Product | Version | EOL Date | Latest |');
+        lines.push('| :--- | :--- | :--- | :--- |');
+        for (const p of activeProducts) {
+            lines.push(`| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | \`${p.latestVersion || 'N/A'}\` |`);
+        }
+        lines.push('');
+        lines.push('</details>');
+        lines.push('');
+    }
+    lines.push('---');
+    lines.push(`*Last updated: ${new Date().toUTCString()} | [Report Link](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})*`);
     return lines.join('\n');
 }
 
@@ -58468,6 +58603,8 @@ exports.ActionInputsSchema = zod_1.z.object({
     githubToken: zod_1.z.string(),
     createIssueOnEol: zod_1.z.boolean(),
     issueLabels: zod_1.z.string(),
+    useDashboard: zod_1.z.boolean(),
+    dashboardTitle: zod_1.z.string(),
     includeLatestVersion: zod_1.z.boolean(),
     includeSupportInfo: zod_1.z.boolean(),
     customApiUrl: zod_1.z.string().url(),
