@@ -19,7 +19,7 @@ class MarkdownHelper {
   ): string {
     switch (type) {
       case 'dashboard':
-        return `| **${p.product}** | \`${p.release}\` | ${p.eolDate || 'N/A'} | Update to \`${p.latestVersion || 'latest'}\` |`;
+        return `| **${p.product}** | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | Update to \`${p.latestVersion || 'latest'}\` |`;
       case 'stale':
         return `| **${p.product}** | \`${p.release}\` | ${p.latestReleaseDate || 'N/A'} | \`${p.daysSinceLatestRelease}\` days stale |`;
       case 'discontinued':
@@ -72,91 +72,129 @@ export function formatAsJson(results: ActionResults): string {
 /**
  * Format results as Markdown
  */
+/**
+ * Format results as Markdown for GitHub Step Summary
+ */
 export function formatAsMarkdown(results: ActionResults): string {
   const lines: string[] = [];
 
   lines.push('# 📊 Software Lifecycle Analysis Report\n');
-  lines.push(`**Total Products Checked:** ${results.totalProductsChecked}`);
-  lines.push(`**Total Releases Checked:** ${results.totalReleasesChecked}\n`);
 
-  if (results.eolProducts.length > 0) {
-    lines.push(MarkdownHelper.createSection('❌ End-of-Life Detected'));
-    lines.push(
-      MarkdownHelper.createTable(
-        ['Product', 'Release', 'EOL Date', 'Latest Version', 'LTS'],
-        results.eolProducts.map((p) =>
-          MarkdownHelper.formatProductRow(p, 'standard')
-        )
-      )
-    );
-  }
-
-  if (results.approachingEolProducts.length > 0) {
-    lines.push(MarkdownHelper.createSection('⚠️ Approaching End-of-Life'));
-    lines.push(
-      MarkdownHelper.createTable(
-        [
-          'Product',
-          'Release',
-          'Days Until EOL',
-          'EOL Date',
-          'Latest Version',
-          'LTS',
-        ],
-        results.approachingEolProducts.map(
-          (p) =>
-            `| ${p.product} | ${p.release} | ${p.daysUntilEol || 'N/A'} | ${p.eolDate || 'N/A'} | ${p.latestVersion || 'N/A'} | ${p.isLts ? '✓' : '✗'} |`
-        )
-      )
-    );
-  }
-
-  if (results.staleProducts.length > 0) {
-    lines.push(MarkdownHelper.createSection('⏰ Stale Versions'));
-    lines.push(
-      MarkdownHelper.createTable(
-        ['Product', 'Release', 'Last Release Date', 'Days Since Latest'],
-        results.staleProducts.map((p) =>
-          MarkdownHelper.formatProductRow(p, 'stale')
-        )
-      )
-    );
-  }
-
-  if (results.discontinuedProducts.length > 0) {
-    lines.push(MarkdownHelper.createSection('🚫 Discontinued Products'));
-    lines.push(
-      MarkdownHelper.createTable(
-        ['Product', 'Release', 'Discontinued Date'],
-        results.discontinuedProducts.map((p) =>
-          MarkdownHelper.formatProductRow(p, 'discontinued')
-        )
-      )
-    );
-  }
-
+  const eolCount = results.eolProducts.length;
+  const approachingCount = results.approachingEolProducts.length;
+  const staleCount = results.staleProducts.length;
+  const discontinuedCount = results.discontinuedProducts.length;
   const activeProducts = results.products.filter(
     (p) => p.status === EolStatus.ACTIVE
   );
-  if (activeProducts.length > 0) {
-    lines.push(MarkdownHelper.createSection('✅ Active Support'));
+
+  // Overview Section
+  lines.push('### 📓 Summary of Findings');
+  const summaryLine = [
+    eolCount > 0 ? `❌ **${eolCount}** EOL` : null,
+    approachingCount > 0 ? `⚠️ **${approachingCount}** Warning` : null,
+    staleCount > 0 ? `⏰ **${staleCount}** Stale` : null,
+    `✅ **${activeProducts.length}** Healthy`,
+  ]
+    .filter(Boolean)
+    .join(' &nbsp;•&nbsp; ');
+
+  lines.push(`> ${summaryLine}\n`);
+  lines.push(
+    `*Analyzed **${results.totalReleasesChecked}** releases across **${results.totalProductsChecked}** products.*\n`
+  );
+
+  // Analysis Details with Collapsible Sections
+  if (eolCount > 0) {
+    const table = MarkdownHelper.createTable(
+      ['Product', 'Release', 'EOL Date', 'Latest Version', 'LTS'],
+      results.eolProducts.map((p) =>
+        MarkdownHelper.formatProductRow(p, 'standard')
+      )
+    );
     lines.push(
-      MarkdownHelper.createTable(
-        ['Product', 'Release', 'EOL Date', 'Latest Version', 'LTS'],
-        activeProducts.map((p) =>
-          MarkdownHelper.formatProductRow(p, 'standard')
-        )
+      MarkdownHelper.createDetails(
+        `❌ CRITICAL: ${eolCount} End-of-Life versions detected`,
+        `**Description:** The following software versions have reached their End-of-Life (EOL) date. They no longer receive security updates or bug fixes and should be upgraded immediately to the latest supported versions.\n\n${table}`
       )
     );
   }
 
-  if (
-    results.eolProducts.length === 0 &&
-    results.approachingEolProducts.length === 0
-  ) {
-    lines.push('## ✅ All Clear!');
-    lines.push('All tracked versions are actively supported.\n');
+  if (approachingCount > 0) {
+    const table = MarkdownHelper.createTable(
+      [
+        'Product',
+        'Release',
+        'Days Until EOL',
+        'EOL Date',
+        'Latest Version',
+        'LTS',
+      ],
+      results.approachingEolProducts.map(
+        (p) =>
+          `| ${p.product} | ${p.release} | ${p.daysUntilEol || 'N/A'} | ${p.eolDate || 'N/A'} | ${p.latestVersion || 'N/A'} | ${p.isLts ? '✓' : '✗'} |`
+      )
+    );
+    lines.push(
+      MarkdownHelper.createDetails(
+        `⚠️ WARNING: ${approachingCount} versions approaching End-of-Life`,
+        `**Description:** These versions are nearing their maintenance cutoff. Planning upgrades now will ensure a smooth transition before support ends.\n\n${table}`
+      )
+    );
   }
+
+  if (staleCount > 0) {
+    const table = MarkdownHelper.createTable(
+      ['Product', 'Release', 'Last Release Date', 'Days Since Latest'],
+      results.staleProducts.map((p) =>
+        MarkdownHelper.formatProductRow(p, 'stale')
+      )
+    );
+    lines.push(
+      MarkdownHelper.createDetails(
+        `⏰ STALE: ${staleCount} stale versions detected`,
+        `**Description:** These products haven't seen an update in over a year (or your configured threshold). While they may still be supported, they might be missing recent stability or performance improvements.\n\n${table}`
+      )
+    );
+  }
+
+  if (discontinuedCount > 0) {
+    const table = MarkdownHelper.createTable(
+      ['Product', 'Release', 'Discontinued Date'],
+      results.discontinuedProducts.map((p) =>
+        MarkdownHelper.formatProductRow(p, 'discontinued')
+      )
+    );
+    lines.push(
+      MarkdownHelper.createDetails(
+        `🚫 **${discontinuedCount}** discontinued products`,
+        `**Description:** These products have been discontinued by their maintainers. It is recommended to look for alternative solutions.\n\n${table}`
+      )
+    );
+  }
+
+  if (activeProducts.length > 0) {
+    const table = MarkdownHelper.createTable(
+      ['Product', 'Release', 'EOL Date', 'Latest Version', 'LTS'],
+      activeProducts.map((p) => MarkdownHelper.formatProductRow(p, 'standard'))
+    );
+    lines.push(
+      MarkdownHelper.createDetails(
+        `✅ HEALTHY: ${activeProducts.length} versions with active support`,
+        `**Description:** These versions are fully supported and up to date.\n\n${table}`
+      )
+    );
+  }
+
+  if (eolCount === 0 && approachingCount === 0) {
+    lines.push('\n### ✅ All Clear!');
+    lines.push('All tracked versions are actively supported and secure.\n');
+  }
+
+  lines.push('\n---\n');
+  lines.push(
+    `*Report generated by [Software Lifecycle Tracker](https://github.com/broadsage/lifecycle-action)*`
+  );
 
   return lines.join('\n');
 }
@@ -405,7 +443,7 @@ export function formatAsDashboard(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createTable(
-        ['Product', 'Version', 'EOL Date', 'Recommended'],
+        ['Product', 'Version', 'EOL Date', 'LTS', 'Recommended'],
         recentEol.map((p) => MarkdownHelper.formatProductRow(p, 'dashboard'))
       )
     );
@@ -420,10 +458,10 @@ export function formatAsDashboard(results: ActionResults): string {
     );
     lines.push(
       MarkdownHelper.createTable(
-        ['Product', 'Version', 'EOL Date', 'Days Left'],
+        ['Product', 'Version', 'EOL Date', 'LTS', 'Days Left'],
         results.approachingEolProducts.map(
           (p) =>
-            `| **${p.product}** | \`${p.release}\` | ${p.eolDate} | \`${p.daysUntilEol}\` days |`
+            `| **${p.product}** | \`${p.release}\` | ${p.eolDate} | ${p.isLts ? '✓' : '✗'} | \`${p.daysUntilEol}\` days |`
         )
       )
     );
@@ -435,10 +473,10 @@ export function formatAsDashboard(results: ActionResults): string {
       MarkdownHelper.createDetails(
         'Click to view products EOL for > 90 days',
         MarkdownHelper.createTable(
-          ['Product', 'Version', 'EOL Date', 'Latest'],
+          ['Product', 'Version', 'EOL Date', 'LTS', 'Latest'],
           legacyEol.map(
             (p) =>
-              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | \`${p.latestVersion || 'N/A'}\` |`
+              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`
           )
         )
       )
@@ -446,17 +484,15 @@ export function formatAsDashboard(results: ActionResults): string {
   }
 
   if (results.staleProducts.length > 0) {
+    lines.push('## ⏰ Maintenance Required');
     lines.push(
-      MarkdownHelper.createSection(
-        '⏰ Maintenance Required',
-        'No updates released for over a year.'
-      )
-    );
-    lines.push(
-      MarkdownHelper.createTable(
-        ['Product', 'Version', 'Last Update', 'Status'],
-        results.staleProducts.map((p) =>
-          MarkdownHelper.formatProductRow(p, 'stale')
+      MarkdownHelper.createDetails(
+        'Click to view products with no updates for a long time',
+        MarkdownHelper.createTable(
+          ['Product', 'Version', 'Last Update', 'Status'],
+          results.staleProducts.map((p) =>
+            MarkdownHelper.formatProductRow(p, 'stale')
+          )
         )
       )
     );
@@ -468,14 +504,11 @@ export function formatAsDashboard(results: ActionResults): string {
   if (activeProducts.length > 0) {
     lines.push('## 🟢 Healthy & Supported');
     lines.push(
-      MarkdownHelper.createDetails(
-        'Click to view all healthy dependencies',
-        MarkdownHelper.createTable(
-          ['Product', 'Version', 'EOL Date', 'Latest'],
-          activeProducts.map(
-            (p) =>
-              `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | \`${p.latestVersion || 'N/A'}\` |`
-          )
+      MarkdownHelper.createTable(
+        ['Product', 'Version', 'EOL Date', 'LTS', 'Latest'],
+        activeProducts.map(
+          (p) =>
+            `| ${p.product} | \`${p.release}\` | ${p.eolDate || 'N/A'} | ${p.isLts ? '✓' : '✗'} | \`${p.latestVersion || 'N/A'}\` |`
         )
       )
     );

@@ -83,8 +83,10 @@ describe('Output Formatting', () => {
             const result = formatAsMarkdown(mockResults);
 
             expect(result).toContain('# 📊 Software Lifecycle Analysis Report');
-            expect(result).toContain('**Total Products Checked:** 1');
-            expect(result).toContain('## ❌ End-of-Life Detected');
+            expect(result).toContain('### 📓 Summary of Findings');
+            expect(result).toContain('❌ **1** EOL');
+            expect(result).toContain('✅ **0** Healthy');
+            expect(result).toContain('<details><summary>❌ CRITICAL: 1 End-of-Life versions detected</summary>');
         });
 
         it('should include EOL products table', () => {
@@ -110,7 +112,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsMarkdown(results);
 
-            expect(result).toContain('## ⚠️ Approaching End-of-Life');
+            expect(result).toContain('<details><summary>⚠️ WARNING: 1 versions approaching End-of-Life</summary>');
             expect(result).toContain('Days Until EOL');
         });
 
@@ -144,7 +146,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsMarkdown(results);
 
-            expect(result).toContain('## ✅ Active Support');
+            expect(result).toContain('<details><summary>✅ HEALTHY: 1 versions with active support</summary>');
         });
 
         it('should handle LTS indicators', () => {
@@ -179,7 +181,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsMarkdown(results);
 
-            expect(result).toContain('## ⏰ Stale Versions');
+            expect(result).toContain('<details><summary>⏰ STALE: 1 stale versions detected</summary>');
             expect(result).toContain('3.6');
             expect(result).toContain('2018-12-24');
         });
@@ -200,7 +202,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsMarkdown(results);
 
-            expect(result).toContain('## 🚫 Discontinued Products');
+            expect(result).toContain('<details><summary>🚫 **1** discontinued products</summary>');
             expect(result).toContain('10.0');
             expect(result).toContain('2023-01-01');
         });
@@ -212,11 +214,10 @@ describe('Output Formatting', () => {
         it('should format results as a modern dashboard with legacy EOL', () => {
             const result = formatAsDashboard(mockResults);
 
-            expect(result).toContain('# 🛡️ Software Lifecycle Dashboard');
-            expect(result).toContain('### 📊 Status Overview');
-            expect(result).toContain('> 🔴 **1** End-of-Life');
+            expect(result).toContain('> 🔴 **1** End-of-Life | 🟠 **0** Warning | 🟢 **0** Healthy');
+            expect(result).toContain('| Product | Version | EOL Date | LTS | Latest |');
             expect(result).toContain('## 💾 Legacy End-of-Life');
-            expect(result).toContain('python');
+            expect(result).toContain('| python | `2.7` | 2020-01-01 | ✗ | `2.7.18` |');
         });
 
         it('should format results with recent EOL', () => {
@@ -233,7 +234,7 @@ describe('Output Formatting', () => {
 
             const result = formatAsDashboard(results);
             expect(result).toContain('## 🔴 Critical: Recent End-of-Life');
-            expect(result).toContain('Update to `2.7.18`');
+            expect(result).toContain('| **python** | `2.7` | 2025-12-01 | ✗ | Update to `2.7.18` |');
         });
 
         it('should include healthy products section', () => {
@@ -249,7 +250,43 @@ describe('Output Formatting', () => {
 
             const result = formatAsDashboard(results);
             expect(result).toContain('## 🟢 Healthy & Supported');
-            expect(result).toContain('3.11');
+            expect(result).toContain('| python | `3.11` | 2020-01-01 | ✗ | `2.7.18` |');
+        });
+
+        it('should include approaching EOL section', () => {
+            const approachingProduct: ProductVersionInfo = {
+                ...mockProduct,
+                status: EolStatus.APPROACHING_EOL,
+                release: '3.10',
+                daysUntilEol: 30,
+                eolDate: '2025-02-01',
+            };
+            const results: ActionResults = {
+                ...mockResults,
+                approachingEolProducts: [approachingProduct],
+            };
+
+            const result = formatAsDashboard(results);
+            expect(result).toContain('🟠 Upcoming Risks');
+            expect(result).toContain('| **python** | `3.10` | 2025-02-01 | ✗ | `30` days |');
+        });
+
+        it('should include stale products section', () => {
+            const staleProduct: ProductVersionInfo = {
+                ...mockProduct,
+                release: '3.6',
+                latestReleaseDate: '2018-12-24',
+                daysSinceLatestRelease: 1800,
+            };
+            const results: ActionResults = {
+                ...mockResults,
+                staleProducts: [staleProduct],
+            };
+
+            const result = formatAsDashboard(results);
+            expect(result).toContain('## ⏰ Maintenance Required');
+            expect(result).toContain('<details><summary>Click to view products with no updates for a long time</summary>');
+            expect(result).toContain('| **python** | `3.6` | 2018-12-24 | `1800` days stale |');
         });
     });
 
@@ -611,8 +648,8 @@ describe('Output Formatting', () => {
 
             const markdown = (core.summary.addRaw as jest.Mock).mock.calls[0][0];
 
-            expect(markdown).toContain('**Total Products Checked:** 1');
-            expect(markdown).toContain('## ❌ End-of-Life Detected');
+            expect(markdown).toContain('### 📓 Summary of Findings');
+            expect(markdown).toContain('<details><summary>❌ CRITICAL: 1 End-of-Life versions detected</summary>');
         });
     });
 
