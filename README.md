@@ -22,6 +22,12 @@ Never miss an End-of-Life date again. Automatically track **380+ software produc
 | 🎯 **Universal Extraction** | Extract versions directly from `package.json`, `Dockerfile`, `Helm charts`, or custom regex. |
 | ⚡ **Enterprise Ready** | Feature-rich with **built-in caching**, SSRF protection, and 85%+ test coverage. |
 
+## 📊 Software Lifecycle Dashboard
+
+Monitor your entire stack's health in a single GitHub Issue. The action can automatically maintain a central dashboard, giving you a live overview of upcoming risks and maintenance requirements.
+
+![Software Lifecycle Dashboard](assets/dashboard.png)
+
 ## 🚀 Quick Start
 
 ### 1. Simple EOL Check
