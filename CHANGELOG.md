@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.1](https://github.com/broadsage/lifecycle-action/compare/v4.3.0...v4.3.1) (2026-01-09)
+
+
+### Miscellaneous
+
+* dashboard improvements ([1f1edce](https://github.com/broadsage/lifecycle-action/commit/1f1edce6a5f09e646d88de15a7f2a6c17faf7d50))
+* dashboard improvements ([1f1edce](https://github.com/broadsage/lifecycle-action/commit/1f1edce6a5f09e646d88de15a7f2a6c17faf7d50))
+
 ## [4.3.0](https://github.com/broadsage/lifecycle-action/compare/v4.2.0...v4.3.0) (2026-01-08)
 
 
